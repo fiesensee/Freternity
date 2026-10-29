@@ -6,6 +6,7 @@ import { projectFretboard } from './core/fretboardProjector';
 import { ComputedFretNode } from './core/models';
 import { FretboardSvg } from './components/fretboard';
 import { audioSynthAdapter } from './adapters/audioSynth';
+import { APP_VERSION } from './version';
 import {
   LayerControlPanel,
   LensSwitcher,
@@ -96,7 +97,7 @@ export const App: FC = () => {
               <div className="flex items-center gap-2">
                 <h1 className="text-lg font-black tracking-tight text-white">Freternity</h1>
                 <span className="text-[10px] font-mono uppercase bg-rose-500/20 text-rose-300 px-2 py-0.5 rounded-full border border-rose-500/30">
-                  v1.0
+                  v{APP_VERSION}
                 </span>
               </div>
               <p className="text-[11px] text-slate-400">

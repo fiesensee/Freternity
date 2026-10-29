@@ -66,4 +66,34 @@ describe('useFretboardStore', () => {
     expect(target.chordId).toBe('min');
     expect(target.diatonicRomanNumeral).toBe('ii');
   });
+
+  it('automatically switches target triad to the tonic (i / I) triad when switching root or mode', () => {
+    // Default is A Aeolian (root: 9, aeolian)
+    // Switch root to E (4)
+    useFretboardStore.getState().setBaseScaleRoot(4);
+    let state = useFretboardStore.getState().viewState;
+    expect(state.scaleLayer.rootPitchClass).toBe(4);
+    // In E Aeolian, tonic triad is E minor (i)
+    expect(state.targetLayer.rootPitchClass).toBe(4);
+    expect(state.targetLayer.chordId).toBe('min');
+    expect(state.targetLayer.diatonicRomanNumeral).toBe('i');
+
+    // Switch scale to Major (C Ionian) via setScaleLayer
+    useFretboardStore.getState().setScaleLayer({ rootPitchClass: 0, scaleId: 'ionian' });
+    state = useFretboardStore.getState().viewState;
+    expect(state.scaleLayer.rootPitchClass).toBe(0);
+    // In C Ionian, tonic triad is C Major (I)
+    expect(state.targetLayer.rootPitchClass).toBe(0);
+    expect(state.targetLayer.chordId).toBe('maj');
+    expect(state.targetLayer.diatonicRomanNumeral).toBe('I');
+
+    // Pivot relative mode to Dorian (D Dorian)
+    useFretboardStore.getState().pivotRelativeMode('dorian');
+    state = useFretboardStore.getState().viewState;
+    expect(state.scaleLayer.rootPitchClass).toBe(2);
+    // In D Dorian, tonic triad is D minor (i)
+    expect(state.targetLayer.rootPitchClass).toBe(2);
+    expect(state.targetLayer.chordId).toBe('min');
+    expect(state.targetLayer.diatonicRomanNumeral).toBe('i');
+  });
 });

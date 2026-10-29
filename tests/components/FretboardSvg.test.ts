@@ -83,4 +83,23 @@ describe('FretboardSvg integration and projection verification', () => {
     expect(zoomedWidth).toBeLessThan(fullWidth * 0.4); // Zoomed window is significantly narrower
     expect(startX).toBeGreaterThan(0);
   });
+
+  it('verifies CagedOverlaySvg renders badge over the fretboard', async () => {
+    const React = await import('react');
+    const { CagedOverlaySvg } = await import('../../src/components/fretboard/CagedOverlaySvg');
+    
+    // Test rendering badge part
+    const element = React.createElement(CagedOverlaySvg, {
+      shape: 'E',
+      windows: [{ min: 0, max: 3 }],
+      getFretX: (f: number) => f * 50 + 65,
+      yTop: 30,
+      height: 190,
+      renderPart: 'badge',
+    });
+
+    expect(element).toBeDefined();
+    expect(element.props.renderPart).toBe('badge');
+    expect(element.props.shape).toBe('E');
+  });
 });

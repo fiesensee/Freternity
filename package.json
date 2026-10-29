@@ -1,13 +1,14 @@
 {
   "name": "freternity",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "release": "npm test && tsc --noEmit && node scripts/release.mjs"
   },
   "dependencies": {
     "react": "^19.0.0",

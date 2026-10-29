@@ -44,7 +44,7 @@ export const FretboardSvg: FC<FretboardSvgProps> = ({
   className = '',
 }) => {
   // SVG Canvas dimensions & Geometry
-  const neckTopY = 35;
+  const neckTopY = 40;
   const stringSpacing = 34;
   const stringCount = instrument.stringCount;
   const neckBottomY = neckTopY + (stringCount - 1) * stringSpacing;
@@ -228,14 +228,15 @@ export const FretboardSvg: FC<FretboardSvgProps> = ({
           );
         })}
 
-        {/* CAGED Stencil Overlay */}
+        {/* CAGED Stencil Overlay (Background bounding box) */}
         {cagedOverlay && cagedOverlay.enabled && (
           <CagedOverlaySvg
             shape={cagedOverlay.shape}
             windows={cagedWindows}
             getFretX={(f) => fretXPositions[Math.min(f, instrument.fretCount)]}
-            yTop={neckTopY - 8}
-            height={neckHeight + 16}
+            yTop={neckTopY - 10}
+            height={neckHeight + 20}
+            renderPart="box"
           />
         )}
 
@@ -291,6 +292,18 @@ export const FretboardSvg: FC<FretboardSvgProps> = ({
               />
             );
           })
+        )}
+
+        {/* CAGED Shape Badges (Rendered over the fretboard and on top of notes) */}
+        {cagedOverlay && cagedOverlay.enabled && (
+          <CagedOverlaySvg
+            shape={cagedOverlay.shape}
+            windows={cagedWindows}
+            getFretX={(f) => fretXPositions[Math.min(f, instrument.fretCount)]}
+            yTop={neckTopY - 10}
+            height={neckHeight + 20}
+            renderPart="badge"
+          />
         )}
       </svg>
     </div>

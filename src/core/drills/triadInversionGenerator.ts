@@ -16,6 +16,7 @@ import {
   CHROMATIC_FLATS,
   CHROMATIC_SHARPS,
   getDiatonicScaleSpelling,
+  getDiatonicTriads,
   isFlatKeySignature,
   midiToPitchClass,
   resolveRootNoteName,
@@ -53,40 +54,15 @@ export function generateTriadInversionChallenge(
   };
 
   // 1. Gather all diatonic triads in key
-  const diatonicTriads = scaleDef.semitones.map((semi, degreeIdx) => {
-    const rootPitch = ((config.scaleContext.rootPitchClass + semi) % 12) as PitchClass;
-    const thirdSemi = scaleDef.semitones[(degreeIdx + 2) % 7];
-    const thirdDist = (thirdSemi - semi + 12) % 12;
-    const fifthSemi = scaleDef.semitones[(degreeIdx + 4) % 7];
-    const fifthDist = (fifthSemi - semi + 12) % 12;
-
-    let chordId: 'maj' | 'min' | 'dim' = 'min';
-    if (thirdDist === 4 && fifthDist === 7) {
-      chordId = 'maj';
-    } else if (thirdDist === 3 && fifthDist === 7) {
-      chordId = 'min';
-    } else if (thirdDist === 3 && fifthDist === 6) {
-      chordId = 'dim';
-    }
-
-    const romanUpper = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII'];
-    const romanLower = ['i', 'ii', 'iii', 'iv', 'v', 'vi', 'vii'];
-    const romanDim = ['i°', 'ii°', 'iii°', 'iv°', 'v°', 'vi°', 'vii°'];
-
-    const roman =
-      chordId === 'maj'
-        ? romanUpper[degreeIdx]
-        : chordId === 'dim'
-        ? romanDim[degreeIdx]
-        : romanLower[degreeIdx];
-
-    return {
-      rootPitch,
-      chordId,
-      roman,
-      degreeIdx,
-    };
-  });
+  const diatonicTriads = getDiatonicTriads(
+    config.scaleContext.rootPitchClass,
+    scaleDef
+  ).map((t) => ({
+    rootPitch: t.rootPitch,
+    chordId: t.chordId,
+    roman: t.romanNumeral,
+    degreeIdx: t.degreeIdx,
+  }));
 
   const isAllInversions = config.exerciseType === 'TRIAD_ALL_INVERSIONS';
   const availableStringSets =

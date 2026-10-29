@@ -211,3 +211,53 @@ export function getRelativeMode(
   const root = (((parentMajorRoot - offset) % 12 + 12) % 12) as PitchClass;
   return { root, scale };
 }
+
+export interface DiatonicTriadInfo {
+  degreeIdx: number;
+  rootPitch: PitchClass;
+  chordId: 'maj' | 'min' | 'dim';
+  romanNumeral: string;
+}
+
+/**
+ * Computes the 7 diatonic triads for a given scale root and scale definition.
+ */
+export function getDiatonicTriads(
+  scaleRoot: PitchClass,
+  scaleDef: ScaleDefinition
+): DiatonicTriadInfo[] {
+  return scaleDef.semitones.map((semi, degreeIdx) => {
+    const rootPitch = ((scaleRoot + semi) % 12) as PitchClass;
+    const thirdSemi = scaleDef.semitones[(degreeIdx + 2) % 7];
+    const thirdDist = (thirdSemi - semi + 12) % 12;
+    const fifthSemi = scaleDef.semitones[(degreeIdx + 4) % 7];
+    const fifthDist = (fifthSemi - semi + 12) % 12;
+
+    let chordId: 'maj' | 'min' | 'dim' = 'min';
+    if (thirdDist === 4 && fifthDist === 7) {
+      chordId = 'maj';
+    } else if (thirdDist === 3 && fifthDist === 7) {
+      chordId = 'min';
+    } else if (thirdDist === 3 && fifthDist === 6) {
+      chordId = 'dim';
+    }
+
+    const romanUpper = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII'];
+    const romanLower = ['i', 'ii', 'iii', 'iv', 'v', 'vi', 'vii'];
+    const romanDim = ['i°', 'ii°', 'iii°', 'iv°', 'v°', 'vi°', 'vii°'];
+
+    const roman =
+      chordId === 'maj'
+        ? romanUpper[degreeIdx]
+        : chordId === 'dim'
+        ? romanDim[degreeIdx]
+        : romanLower[degreeIdx];
+
+    return {
+      degreeIdx,
+      rootPitch,
+      chordId,
+      romanNumeral: roman,
+    };
+  });
+}

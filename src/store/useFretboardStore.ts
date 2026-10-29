@@ -9,7 +9,7 @@ import {
   TargetLayerConfig,
 } from '../core/models';
 import { SCALE_MAP } from '../core/constants';
-import { getParentMajorRoot, getRelativeMode } from '../core/musicTheory';
+import { getDiatonicTriads, getParentMajorRoot, getRelativeMode } from '../core/musicTheory';
 import { loadStateFromUrl, syncStateToUrl } from '../adapters/urlStateSync';
 
 export const DEFAULT_FRETBOARD_STATE: FretboardViewState = {
@@ -83,10 +83,37 @@ export const useFretboardStore = create<FretboardStore>((set, get) => {
       updateStateAndSyncUrl((prev) => ({ ...prev, labelMode: mode })),
 
     setScaleLayer: (config) =>
-      updateStateAndSyncUrl((prev) => ({
-        ...prev,
-        scaleLayer: { ...prev.scaleLayer, ...config },
-      })),
+      updateStateAndSyncUrl((prev) => {
+        const nextScale = { ...prev.scaleLayer, ...config };
+        const rootChanged =
+          config.rootPitchClass !== undefined &&
+          config.rootPitchClass !== prev.scaleLayer.rootPitchClass;
+        const scaleChanged =
+          config.scaleId !== undefined && config.scaleId !== prev.scaleLayer.scaleId;
+
+        if (rootChanged || scaleChanged) {
+          const scaleDef = SCALE_MAP[nextScale.scaleId] ?? SCALE_MAP['ionian'];
+          const diatonicTriads = getDiatonicTriads(nextScale.rootPitchClass, scaleDef);
+          const tonic = diatonicTriads[0];
+
+          return {
+            ...prev,
+            scaleLayer: nextScale,
+            targetLayer: {
+              ...prev.targetLayer,
+              enabled: true,
+              rootPitchClass: tonic.rootPitch,
+              chordId: tonic.chordId,
+              diatonicRomanNumeral: tonic.romanNumeral,
+            },
+          };
+        }
+
+        return {
+          ...prev,
+          scaleLayer: nextScale,
+        };
+      }),
 
     setTargetLayer: (config) =>
       updateStateAndSyncUrl((prev) => ({
@@ -159,21 +186,47 @@ export const useFretboardStore = create<FretboardStore>((set, get) => {
       );
       const { root } = getRelativeMode(parentMajorRoot, targetModeId);
 
-      updateStateAndSyncUrl((prev) => ({
-        ...prev,
-        scaleLayer: {
-          ...prev.scaleLayer,
-          rootPitchClass: root,
-          scaleId: targetModeId,
-        },
-      }));
+      updateStateAndSyncUrl((prev) => {
+        const nextScaleDef = SCALE_MAP[targetModeId] ?? SCALE_MAP['ionian'];
+        const diatonicTriads = getDiatonicTriads(root, nextScaleDef);
+        const tonic = diatonicTriads[0];
+
+        return {
+          ...prev,
+          scaleLayer: {
+            ...prev.scaleLayer,
+            rootPitchClass: root,
+            scaleId: targetModeId,
+          },
+          targetLayer: {
+            ...prev.targetLayer,
+            enabled: true,
+            rootPitchClass: tonic.rootPitch,
+            chordId: tonic.chordId,
+            diatonicRomanNumeral: tonic.romanNumeral,
+          },
+        };
+      });
     },
 
     setBaseScaleRoot: (root) =>
-      updateStateAndSyncUrl((prev) => ({
-        ...prev,
-        scaleLayer: { ...prev.scaleLayer, rootPitchClass: root },
-      })),
+      updateStateAndSyncUrl((prev) => {
+        const scaleDef = SCALE_MAP[prev.scaleLayer.scaleId] ?? SCALE_MAP['ionian'];
+        const diatonicTriads = getDiatonicTriads(root, scaleDef);
+        const tonic = diatonicTriads[0];
+
+        return {
+          ...prev,
+          scaleLayer: { ...prev.scaleLayer, rootPitchClass: root },
+          targetLayer: {
+            ...prev.targetLayer,
+            enabled: true,
+            rootPitchClass: tonic.rootPitch,
+            chordId: tonic.chordId,
+            diatonicRomanNumeral: tonic.romanNumeral,
+          },
+        };
+      }),
 
     setTargetChord: (root, chordId, romanNumeral) =>
       updateStateAndSyncUrl((prev) => ({

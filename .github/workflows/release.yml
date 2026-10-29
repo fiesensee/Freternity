@@ -1,0 +1,115 @@
+name: Release & Semantic Versioning
+
+on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: 'SemVer bump level (auto determines from conventional commits)'
+        required: true
+        default: 'auto'
+        type: choice
+        options:
+          - auto
+          - patch
+          - minor
+          - major
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  test:
+    name: Run Unit Tests & Build Verification
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run unit test suite
+        run: npm test
+
+      - name: Verify TypeScript & bundle build
+        run: npm run build
+
+  version-and-release:
+    name: SemVer Bump & GitHub Release
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Configure Git Author
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      # Scenario A: User manually triggered the release workflow (calculates next SemVer)
+      - name: Calculate and bump SemVer version
+        id: bump
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          node scripts/release.mjs --bump=${{ inputs.bump }}
+
+      - name: Commit, tag, and publish GitHub Release
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ steps.bump.outputs.tag }}"
+          NEXT_VER="${{ steps.bump.outputs.next_version }}"
+          
+          git add package.json
+          git commit -m "chore(release): bump version to ${NEXT_VER} [skip ci]"
+          git tag -a "${TAG}" -m "Release ${TAG}"
+          git push origin main --follow-tags
+
+          # Create GitHub Release with automated changelog
+          gh release create "${TAG}" \
+            --title "Freternity ${TAG}" \
+            --generate-notes
+
+      # Scenario B: User published a GitHub Release in the GitHub UI (syncs package.json to release tag)
+      - name: Sync package.json to published release tag
+        if: github.event_name == 'release'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          RAW_TAG="${{ github.event.release.tag_name }}"
+          CLEAN_VER="${RAW_TAG#v}"
+
+          node -e "
+            const fs = require('fs');
+            const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+            pkg.version = '${CLEAN_VER}';
+            fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
+          "
+
+          git add package.json
+          git diff --quiet && git diff --staged --quiet || (
+            git commit -m "chore(release): sync package.json to ${RAW_TAG} [skip ci]" &&
+            git push origin main
+          )

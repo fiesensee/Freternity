@@ -5,6 +5,7 @@ import {
   CHROMATIC_FLATS,
   CHROMATIC_SHARPS,
   getDiatonicScaleSpelling,
+  getDiatonicTriads,
   getParentMajorRoot,
   isFlatKeySignature,
   resolveRootNoteName,
@@ -45,6 +46,7 @@ export const LayerControlPanel: FC = () => {
   const viewState = useFretboardStore((s) => s.viewState);
   const viewWindow = useFretboardStore((s) => s.viewWindow);
   const setScaleLayer = useFretboardStore((s) => s.setScaleLayer);
+  const setBaseScaleRoot = useFretboardStore((s) => s.setBaseScaleRoot);
   const setTargetLayer = useFretboardStore((s) => s.setTargetLayer);
   const setCagedShape = useFretboardStore((s) => s.setCagedShape);
   const setCagedOverlay = useFretboardStore((s) => s.setCagedOverlay);
@@ -89,40 +91,11 @@ export const LayerControlPanel: FC = () => {
   };
 
   // Compute 7 Diatonic Triads of the active scale
-  const diatonicTriads = activeScaleDef.semitones.map((semi, degreeIdx) => {
-    const rootPitch = ((scaleLayer.rootPitchClass + semi) % 12) as PitchClass;
-    const thirdSemi = activeScaleDef.semitones[(degreeIdx + 2) % 7];
-    const thirdDistance = ((thirdSemi - semi + 12) % 12);
-    const fifthSemi = activeScaleDef.semitones[(degreeIdx + 4) % 7];
-    const fifthDistance = ((fifthSemi - semi + 12) % 12);
-
-    let chordId: 'maj' | 'min' | 'dim' = 'min';
-    if (thirdDistance === 4 && fifthDistance === 7) {
-      chordId = 'maj';
-    } else if (thirdDistance === 3 && fifthDistance === 7) {
-      chordId = 'min';
-    } else if (thirdDistance === 3 && fifthDistance === 6) {
-      chordId = 'dim';
-    }
-
-    const romanUpper = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII'];
-    const romanLower = ['i', 'ii', 'iii', 'iv', 'v', 'vi', 'vii'];
-    const romanDim = ['i°', 'ii°', 'iii°', 'iv°', 'v°', 'vi°', 'vii°'];
-
-    const roman =
-      chordId === 'maj'
-        ? romanUpper[degreeIdx]
-        : chordId === 'dim'
-        ? romanDim[degreeIdx]
-        : romanLower[degreeIdx];
-
-    const chordNoteName = getNoteName(rootPitch);
-    const chordLabel = `${chordNoteName}${chordId === 'maj' ? '' : chordId === 'dim' ? '°' : 'm'}`;
-
+  const diatonicTriads = getDiatonicTriads(scaleLayer.rootPitchClass, activeScaleDef).map((dt) => {
+    const chordNoteName = getNoteName(dt.rootPitch);
+    const chordLabel = `${chordNoteName}${dt.chordId === 'maj' ? '' : dt.chordId === 'dim' ? '°' : 'm'}`;
     return {
-      rootPitch,
-      chordId,
-      romanNumeral: roman,
+      ...dt,
       label: chordLabel,
     };
   });
@@ -159,7 +132,7 @@ export const LayerControlPanel: FC = () => {
                 return (
                   <button
                     key={pc}
-                    onClick={() => setScaleLayer({ rootPitchClass: pc })}
+                    onClick={() => setBaseScaleRoot(pc)}
                     className={`py-1 text-xs font-mono font-bold rounded-md transition cursor-pointer ${
                       isSelected
                         ? 'bg-sky-500 text-white shadow ring-1 ring-sky-300'
