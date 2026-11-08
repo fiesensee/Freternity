@@ -12,27 +12,28 @@ import { SCALE_MAP } from '../core/constants';
 import { getDiatonicTriads, getParentMajorRoot, getRelativeMode } from '../core/musicTheory';
 import { loadStateFromUrl, syncStateToUrl } from '../adapters/urlStateSync';
 
+/** First visit: plain C major across the whole neck, no chord or CAGED shape on top. */
 export const DEFAULT_FRETBOARD_STATE: FretboardViewState = {
   instrumentId: 'guitar_6_standard',
   labelMode: 'NOTE_NAME',
   scaleLayer: {
     enabled: true,
-    rootPitchClass: 9, // A
+    rootPitchClass: 0, // C
     preferFlats: true,
-    scaleId: 'aeolian',
+    scaleId: 'ionian',
   },
+  // Hidden, but set to the I chord so "highlight a chord" starts from C
   targetLayer: {
-    enabled: true,
-    rootPitchClass: 5, // F
+    enabled: false,
+    rootPitchClass: 0, // C
     chordId: 'maj',
-    diatonicRomanNumeral: 'VI',
-    activeInversion: 'FIRST',
+    diatonicRomanNumeral: 'I',
   },
   filterMask: {
-    activeStrings: [1, 2, 3],
+    activeStrings: [1, 2, 3, 4, 5, 6],
     fretRange: { min: 0, max: 22 },
     cagedOverlay: {
-      enabled: true,
+      enabled: false,
       shape: 'E',
       referenceRoot: 'TARGET_ROOT',
     },
@@ -171,7 +172,8 @@ export const useFretboardStore = create<FretboardStore>((set, get) => {
           ...prev,
           filterMask: {
             ...prev.filterMask,
-            cagedOverlay: { ...current, shape },
+            // Picking a shape always shows it (it may have been switched off via "whole neck")
+            cagedOverlay: { ...current, shape, enabled: true },
           },
         };
       }),

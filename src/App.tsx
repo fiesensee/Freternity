@@ -8,11 +8,7 @@ import { FretboardLegend, type LegendContext } from './components/fretboard';
 import { FretboardSvg } from './components/fretboard';
 import { audioSynthAdapter } from './adapters/audioSynth';
 import { APP_VERSION } from './version';
-import {
-  LayerControlPanel,
-  LensSwitcher,
-  StringMaskToggle,
-} from './components/controls';
+import { LensSwitcher, SentenceBar, ViewMenu } from './components/controls';
 import {
   DrillConfigModal,
   DrillSetupCard,
@@ -119,7 +115,7 @@ export const App: FC = () => {
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
       {/* Top Navigation / App Bar */}
       <header className="border-b border-slate-800/80 bg-slate-900/60 backdrop-blur sticky top-0 z-20">
-        <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between gap-4">
+        <div className="max-w-7xl mx-auto px-4 py-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
           <div className="flex items-center gap-3">
             <span className="text-2xl">🎸</span>
             <div>
@@ -129,7 +125,7 @@ export const App: FC = () => {
                   v{APP_VERSION}
                 </span>
               </div>
-              <p className="text-[11px] text-slate-400">
+              <p className="hidden sm:block text-[11px] text-slate-400">
                 Relational Fretboard Theory & Practice Engine
               </p>
             </div>
@@ -174,7 +170,7 @@ export const App: FC = () => {
             {/* Reset Button */}
             <button
               onClick={resetToDefaults}
-              title="Reset to default A Aeolian view"
+              title="Back to plain C major"
               className="px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-800/60 hover:bg-slate-800 text-slate-400 hover:text-slate-200 border border-slate-800 transition cursor-pointer"
             >
               Reset
@@ -195,18 +191,13 @@ export const App: FC = () => {
           <PracticeHud onOpenSettings={() => setIsConfigOpen(true)} />
         )}
 
-        {/* Explore Mode Quick Controls (Lens & Strings) */}
-        {activeTab === 'explore' && !isPracticing && (
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-            <LensSwitcher />
-            <StringMaskToggle />
-          </div>
-        )}
+        {/* Explore: what to show, phrased as one sentence */}
+        {activeTab === 'explore' && !isPracticing && <SentenceBar />}
 
         {/* Responsive SVG Fretboard (shown in explore or while practicing) */}
         {(activeTab === 'explore' || isPracticing) && (
-          <div className="bg-slate-900/70 border border-slate-800 rounded-2xl p-4 sm:p-6 shadow-2xl relative overflow-hidden">
-            <div className="mb-3 flex items-center justify-between">
+          <div className="bg-slate-900/70 border border-slate-800 rounded-2xl p-4 sm:p-6 shadow-2xl relative">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-2">
                 <span className="text-xs font-bold uppercase tracking-wider text-slate-300">
                   {isPracticing ? 'Practice Fretboard' : 'Fretboard'}
@@ -218,9 +209,14 @@ export const App: FC = () => {
                 )}
               </div>
 
-              <div className="text-[11px] text-slate-400 font-mono">
-                Standard 6-String Guitar (E A D G B E)
-              </div>
+              {isPracticing ? (
+                <div className="text-[11px] text-slate-400 font-mono">Standard tuning (E A D G B E)</div>
+              ) : (
+                <div className="flex flex-wrap items-center gap-2">
+                  <LensSwitcher />
+                  <ViewMenu />
+                </div>
+              )}
             </div>
 
             <FretboardSvg
@@ -239,8 +235,10 @@ export const App: FC = () => {
                   ? {
                       enabled: true,
                       shape: effectiveViewState.filterMask.cagedOverlay.shape,
+                      // A hidden chord can't anchor the shape: fall back to the scale root
                       referenceRoot:
-                        effectiveViewState.filterMask.cagedOverlay.referenceRoot === 'TARGET_ROOT'
+                        effectiveViewState.filterMask.cagedOverlay.referenceRoot === 'TARGET_ROOT' &&
+                        effectiveViewState.targetLayer.enabled
                           ? effectiveViewState.targetLayer.rootPitchClass
                           : effectiveViewState.scaleLayer.rootPitchClass,
                     }
@@ -251,9 +249,6 @@ export const App: FC = () => {
             <FretboardLegend context={legendContext} />
           </div>
         )}
-
-        {/* Explore controls: scale, chord, CAGED shape & zoom */}
-        {activeTab === 'explore' && !isPracticing && <LayerControlPanel />}
 
       </main>
 

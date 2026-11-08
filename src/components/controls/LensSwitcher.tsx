@@ -37,7 +37,7 @@ export const LensSwitcher: FC = () => {
   }, [setLabelMode, hasChord]);
 
   return (
-    <div className="flex items-center gap-1.5 bg-slate-900/90 border border-slate-800 p-1.5 rounded-xl shadow-inner">
+    <div className="flex flex-wrap items-center gap-1 bg-slate-950/60 border border-slate-800 p-1 rounded-xl">
       <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider px-2">
         Labels:
       </span>
@@ -51,7 +51,7 @@ export const LensSwitcher: FC = () => {
             disabled={isUnavailable}
             title={
               isUnavailable
-                ? 'Pick a chord below to see its chord tones'
+                ? 'Highlight a chord first to see its chord tones'
                 : `${opt.desc} (shortcut: ${opt.key})`
             }
             className={`px-3 py-1.5 rounded-lg text-xs font-medium transition cursor-pointer select-none disabled:opacity-40 disabled:cursor-not-allowed ${

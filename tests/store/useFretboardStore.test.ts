@@ -68,8 +68,8 @@ describe('useFretboardStore', () => {
   });
 
   it('automatically switches target triad to the tonic (i / I) triad when switching root or mode', () => {
-    // Default is A Aeolian (root: 9, aeolian)
-    // Switch root to E (4)
+    // Start from A Aeolian, then switch root to E (4)
+    useFretboardStore.getState().setScaleLayer({ rootPitchClass: 9, scaleId: 'aeolian' });
     useFretboardStore.getState().setBaseScaleRoot(4);
     let state = useFretboardStore.getState().viewState;
     expect(state.scaleLayer.rootPitchClass).toBe(4);
@@ -114,5 +114,22 @@ describe('useFretboardStore', () => {
     store().setTargetLayer({ enabled: true });
     const { scaleLayer, targetLayer } = store().viewState;
     expect(targetLayer.rootPitchClass).toBe(scaleLayer.rootPitchClass);
+  });
+
+  it('shows the CAGED outline again when a shape is picked after it was switched off', () => {
+    const store = useFretboardStore.getState;
+    const overlay = store().viewState.filterMask.cagedOverlay!;
+    store().setCagedOverlay({ ...overlay, enabled: false });
+
+    store().setCagedShape('A');
+    expect(store().viewState.filterMask.cagedOverlay).toMatchObject({ shape: 'A', enabled: true });
+  });
+
+  it('starts with plain C major on all strings, without chord or CAGED shape', () => {
+    const { scaleLayer, targetLayer, filterMask } = useFretboardStore.getState().viewState;
+    expect(scaleLayer).toMatchObject({ enabled: true, rootPitchClass: 0, scaleId: 'ionian' });
+    expect(targetLayer.enabled).toBe(false);
+    expect(filterMask.activeStrings).toEqual([1, 2, 3, 4, 5, 6]);
+    expect(filterMask.cagedOverlay?.enabled).toBe(false);
   });
 });

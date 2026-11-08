@@ -1,4 +1,5 @@
 export * from './LensSwitcher';
 export * from './ModalPivotSlider';
-export * from './StringMaskToggle';
-export * from './LayerControlPanel';
+export * from './Popover';
+export * from './SentenceBar';
+export * from './ViewMenu';
