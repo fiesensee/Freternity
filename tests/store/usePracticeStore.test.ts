@@ -5,6 +5,7 @@ import {
 } from '../../src/store/usePracticeStore';
 import { FretPosition } from '../../src/core/models';
 import { audioSynthAdapter } from '../../src/adapters/audioSynth';
+import { GUITAR_6_STANDARD } from '../../src/core/constants';
 
 describe('usePracticeStore interactive selections & evaluation', () => {
   beforeEach(() => {
@@ -206,5 +207,147 @@ describe('usePracticeStore interactive selections & evaluation', () => {
     usePracticeStore.getState().advanceToNextChallenge();
     expect(usePracticeStore.getState().engine.stats.passed).toBe(1);
     expect(usePracticeStore.getState().engine.stats.missed).toBe(0);
+  });
+});
+
+describe('usePracticeStore guitar (pitch) input', () => {
+  beforeEach(() => {
+    usePracticeStore.getState().stopPractice();
+  });
+
+  const voicingMidis = (voicing: readonly FretPosition[]) =>
+    voicing.map((p) => GUITAR_6_STANDARD.tuningMidi[p.stringIndex - 1] + p.fret);
+
+  it('auto-reveals as a match once the correct voicing is played note by note', () => {
+    usePracticeStore.getState().startPractice({ exerciseType: 'TRIAD_INVERSION_HUNTER' });
+    const challenge = usePracticeStore.getState().engine.currentChallenge!;
+
+    const [a, b, c] = voicingMidis(challenge.validVoicings[0]);
+    usePracticeStore.getState().registerPlayedNote(a);
+    usePracticeStore.getState().registerPlayedNote(b);
+    expect(usePracticeStore.getState().engine.phase).toBe('PROMPTING');
+    expect(usePracticeStore.getState().userSelections).toHaveLength(2);
+
+    usePracticeStore.getState().registerPlayedNote(c);
+    expect(usePracticeStore.getState().engine.phase).toBe('REVEALING');
+    expect(usePracticeStore.getState().evaluation?.isMatch).toBe(true);
+  });
+
+  it('recovers from a wrong note when the triad is replayed', () => {
+    usePracticeStore.getState().startPractice({ exerciseType: 'TRIAD_INVERSION_HUNTER' });
+    const challenge = usePracticeStore.getState().engine.currentChallenge!;
+    const notes = voicingMidis(challenge.validVoicings[0]);
+
+    usePracticeStore.getState().registerPlayedNote(notes[0] + 1); // wrong
+    for (const m of notes) usePracticeStore.getState().registerPlayedNote(m);
+    expect(usePracticeStore.getState().evaluation?.isMatch).toBe(true);
+  });
+
+  it('marks wrong notes when time runs out', () => {
+    usePracticeStore.getState().startPractice({ exerciseType: 'TRIAD_INVERSION_HUNTER' });
+    const challenge = usePracticeStore.getState().engine.currentChallenge!;
+    const [a, b] = voicingMidis(challenge.validVoicings[0]);
+
+    usePracticeStore.getState().registerPlayedNote(a);
+    usePracticeStore.getState().registerPlayedNote(b);
+    usePracticeStore.getState().revealNow();
+
+    const evaluation = usePracticeStore.getState().evaluation!;
+    expect(evaluation.isMatch).toBe(false);
+    expect(evaluation.missedPositions).toHaveLength(1);
+  });
+
+  it('ignores notes outside the prompting phase and clears heard notes on advance', () => {
+    usePracticeStore.getState().startPractice();
+    usePracticeStore.getState().registerPlayedNote(60);
+    expect(usePracticeStore.getState().heardNotes).toEqual([60]);
+    usePracticeStore.getState().revealNow();
+    usePracticeStore.getState().registerPlayedNote(62);
+    expect(usePracticeStore.getState().heardNotes).toEqual([60]);
+    usePracticeStore.getState().advanceToNextChallenge();
+    expect(usePracticeStore.getState().heardNotes).toEqual([]);
+  });
+});
+
+describe('usePracticeStore live per-note feedback', () => {
+  beforeEach(() => {
+    usePracticeStore.getState().stopPractice();
+  });
+
+  it('marks each played note correct or wrong immediately, without revealing missed notes', () => {
+    usePracticeStore.getState().startPractice({ exerciseType: 'TRIAD_INVERSION_HUNTER' });
+    const challenge = usePracticeStore.getState().engine.currentChallenge!;
+    const voicing = challenge.validVoicings[0];
+    const midiOf = (p: FretPosition) => GUITAR_6_STANDARD.tuningMidi[p.stringIndex - 1] + p.fret;
+
+    usePracticeStore.getState().registerPlayedNote(midiOf(voicing[0]));
+    let live = usePracticeStore.getState().liveEvaluation!;
+    expect(live.correctPositions).toEqual([voicing[0]]);
+    expect(live.wrongPositions).toEqual([]);
+    expect(usePracticeStore.getState().engine.phase).toBe('PROMPTING');
+
+    // A note a semitone above the 2nd voicing note is not in any shape → wrong right away
+    usePracticeStore.getState().registerPlayedNote(midiOf(voicing[1]) + 1);
+    live = usePracticeStore.getState().liveEvaluation!;
+    expect(live.wrongPositions).toHaveLength(1);
+
+    usePracticeStore.getState().clearUserSelection();
+    expect(usePracticeStore.getState().liveEvaluation).toBeNull();
+  });
+});
+
+describe('usePracticeStore all inversions with guitar input (sequential, nut → 12th fret)', () => {
+  beforeEach(() => {
+    usePracticeStore.getState().stopPractice();
+  });
+
+  const midiOf = (p: FretPosition) => GUITAR_6_STANDARD.tuningMidi[p.stringIndex - 1] + p.fret;
+
+  it('accepts the shapes only in ascending order and gives live feedback per note', async () => {
+    const { getAscendingInversionSequence } = await import('../../src/core/triadVoicings');
+    usePracticeStore.getState().startPractice({ exerciseType: 'TRIAD_ALL_INVERSIONS' });
+    const challenge = usePracticeStore.getState().engine.currentChallenge!;
+    const seq = getAscendingInversionSequence(challenge.inversionVoicings!);
+    const play = (m: number) => usePracticeStore.getState().registerPlayedNote(m);
+
+    // Playing the 2nd shape first: its notes aren't all in shape 1, so step does not advance
+    const onlyInSecond = seq[1].positions.map(midiOf).filter((m) => !seq[0].positions.map(midiOf).includes(m));
+    play(onlyInSecond[0]);
+    expect(usePracticeStore.getState().inversionStep).toBe(0);
+    expect(usePracticeStore.getState().liveEvaluation!.wrongPositions).toHaveLength(1);
+
+    // First note of shape 1 is marked correct right away, at shape 1's position
+    play(midiOf(seq[0].positions[0]));
+    expect(usePracticeStore.getState().liveEvaluation!.correctPositions).toEqual([seq[0].positions[0]]);
+
+    // Finishing shape 1 locks it in and clears the mistake
+    seq[0].positions.slice(1).forEach((p) => play(midiOf(p)));
+    let state = usePracticeStore.getState();
+    expect(state.inversionStep).toBe(1);
+    expect(state.liveEvaluation!.wrongPositions).toEqual([]);
+    expect(state.liveEvaluation!.foundInversions).toEqual([seq[0].inversion]);
+
+    seq[1].positions.forEach((p) => play(midiOf(p)));
+    seq[2].positions.forEach((p) => play(midiOf(p)));
+    state = usePracticeStore.getState();
+    expect(state.engine.phase).toBe('REVEALING');
+    expect(state.evaluation?.isMatch).toBe(true);
+  });
+
+  it('reports the unfinished shapes as missed when time runs out', async () => {
+    const { getAscendingInversionSequence } = await import('../../src/core/triadVoicings');
+    usePracticeStore.getState().startPractice({ exerciseType: 'TRIAD_ALL_INVERSIONS' });
+    const challenge = usePracticeStore.getState().engine.currentChallenge!;
+    const seq = getAscendingInversionSequence(challenge.inversionVoicings!);
+
+    seq[0].positions.forEach((p) => usePracticeStore.getState().registerPlayedNote(midiOf(p)));
+    usePracticeStore.getState().revealNow();
+
+    const evaluation = usePracticeStore.getState().evaluation!;
+    expect(evaluation.isMatch).toBe(false);
+    expect(evaluation.foundInversions).toEqual([seq[0].inversion]);
+    expect(evaluation.missedPositions).toEqual(
+      expect.arrayContaining([...seq[1].positions, ...seq[2].positions])
+    );
   });
 });

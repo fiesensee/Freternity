@@ -30,7 +30,10 @@ export const App: FC = () => {
   const getCurrentBoardState = usePracticeStore((s) => s.getCurrentBoardState);
   const userSelections = usePracticeStore((s) => s.userSelections);
   const evaluation = usePracticeStore((s) => s.evaluation);
+  const liveEvaluation = usePracticeStore((s) => s.liveEvaluation);
   const toggleUserSelection = usePracticeStore((s) => s.toggleUserSelection);
+  const inputMode = usePracticeStore((s) => s.inputMode);
+  const setInputMode = usePracticeStore((s) => s.setInputMode);
 
   const [activeTab, setActiveTab] = useState<'explore' | 'practice'>('explore');
   const [isConfigOpen, setIsConfigOpen] = useState(false);
@@ -42,6 +45,8 @@ export const App: FC = () => {
     if (isPracticing) {
       stopPractice();
     }
+    // Don't keep the microphone open outside of practice
+    setInputMode('POINTER');
     setActiveTab('explore');
   };
 
@@ -53,8 +58,19 @@ export const App: FC = () => {
   // Pure projection
   const matrix = projectFretboard(effectiveViewState, GUITAR_6_STANDARD);
 
-  // Calculate comparison map during REVEALING phase
+  // Comparison map: full result on REVEAL; while prompting with guitar input,
+  // each played note is marked right/wrong immediately (missed notes stay hidden).
   const comparisonMap = useMemo(() => {
+    if (isPracticing && practicePhase === 'PROMPTING' && liveEvaluation) {
+      const live: Record<string, 'CORRECT' | 'WRONG'> = {};
+      liveEvaluation.correctPositions.forEach((p) => {
+        live[`${p.stringIndex}-${p.fret}`] = 'CORRECT';
+      });
+      liveEvaluation.wrongPositions.forEach((p) => {
+        live[`${p.stringIndex}-${p.fret}`] = 'WRONG';
+      });
+      return live;
+    }
     if (!isPracticing || practicePhase !== 'REVEALING' || !evaluation) {
       return undefined;
     }
@@ -69,10 +85,10 @@ export const App: FC = () => {
       map[`${p.stringIndex}-${p.fret}`] = 'MISSED';
     });
     return map;
-  }, [isPracticing, practicePhase, evaluation]);
+  }, [isPracticing, practicePhase, evaluation, liveEvaluation]);
 
   const handleNodeClick = (node: ComputedFretNode) => {
-    if (isPracticing && practicePhase === 'PROMPTING') {
+    if (isPracticing && practicePhase === 'PROMPTING' && inputMode === 'POINTER') {
       audioSynthAdapter.playSingleNote(node.frequencyHz);
       toggleUserSelection(node.position);
     }
@@ -200,7 +216,9 @@ export const App: FC = () => {
               viewWindow={viewWindow}
               userSelections={isPracticing ? userSelections : undefined}
               comparisonMap={comparisonMap}
-              isInteractivePractice={isPracticing && practicePhase === 'PROMPTING'}
+              isInteractivePractice={
+                isPracticing && practicePhase === 'PROMPTING' && inputMode === 'POINTER'
+              }
               onNodeClick={handleNodeClick}
               cagedOverlay={
                 effectiveViewState.filterMask.cagedOverlay &&

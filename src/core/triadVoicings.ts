@@ -105,6 +105,38 @@ export function findClosedTriadVoicings(
   return results;
 }
 
+const minFret = (v: readonly FretPosition[]) => Math.min(...v.map((p) => p.fret));
+const avgFret = (v: readonly FretPosition[]) => v.reduce((sum, p) => sum + p.fret, 0) / v.length;
+
+/** Orders voicings from the nut upward (lowest fret first, then average fret). */
+export function compareVoicingsByNeckPosition(
+  a: readonly FretPosition[],
+  b: readonly FretPosition[]
+): number {
+  return minFret(a) - minFret(b) || avgFret(a) - avgFret(b);
+}
+
+export interface InversionStep {
+  inversion: TriadInversion;
+  positions: readonly FretPosition[];
+}
+
+/**
+ * The three consecutive inversion shapes starting nearest the nut, in the order they
+ * appear walking up the neck (they repeat from ~fret 12 on).
+ */
+export function getAscendingInversionSequence(
+  inversionVoicings: Record<TriadInversion, ReadonlyArray<readonly FretPosition[]>>
+): InversionStep[] {
+  return (['ROOT', 'FIRST', 'SECOND'] as const)
+    .map((inversion) => {
+      const lowest = [...(inversionVoicings[inversion] ?? [])].sort(compareVoicingsByNeckPosition)[0];
+      return lowest ? { inversion, positions: lowest } : null;
+    })
+    .filter((step): step is InversionStep => step !== null)
+    .sort((a, b) => compareVoicingsByNeckPosition(a.positions, b.positions));
+}
+
 function getMatchingFretsOnString(
   stringIndex: number,
   targetPitch: PitchClass,

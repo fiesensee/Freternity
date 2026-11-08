@@ -123,3 +123,22 @@ describe('triadVoicings', () => {
     expect(voicings.some((v) => v.positions.some((p) => p.fret === 14))).toBe(true);
   });
 });
+
+describe('getAscendingInversionSequence', () => {
+  it('returns the three inversions nearest the nut, ordered up the neck', async () => {
+    const { getAscendingInversionSequence, findClosedTriadVoicings } = await import('../../src/core/triadVoicings');
+    const { CHORD_MAP, GUITAR_6_STANDARD } = await import('../../src/core/constants');
+    // C major on strings 1-2-3
+    const voicings = findClosedTriadVoicings(0, CHORD_MAP['maj'], 'ANY', [1, 2, 3], GUITAR_6_STANDARD);
+    const byInv = (inv: string) => voicings.filter((v) => v.inversion === inv).map((v) => v.positions);
+    const seq = getAscendingInversionSequence({ ROOT: byInv('ROOT'), FIRST: byInv('FIRST'), SECOND: byInv('SECOND') });
+
+    expect(seq).toHaveLength(3);
+    // C major on G-B-E: 2nd inv G-C-E (frets 0-1) → root C-E-G (3-5) → 1st inv E-G-C (8-9)
+    expect(seq.map((s) => s.inversion)).toEqual(['SECOND', 'ROOT', 'FIRST']);
+    const lowest = seq.map((s) => Math.min(...s.positions.map((p) => p.fret)));
+    expect(lowest[0]).toBeLessThan(lowest[1]);
+    expect(lowest[1]).toBeLessThan(lowest[2]);
+    expect(lowest[2]).toBeLessThanOrEqual(12);
+  });
+});

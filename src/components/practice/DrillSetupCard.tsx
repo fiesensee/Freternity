@@ -3,6 +3,7 @@ import { usePracticeStore } from '../../store/usePracticeStore';
 import { PitchClass, TriadInversion } from '../../core/models';
 import { DIATONIC_MODES, SCALE_MAP } from '../../core/constants';
 import { resolveRootNoteName, isFlatKeySignature } from '../../core/musicTheory';
+import { GuitarInputPanel } from './GuitarInputPanel';
 
 const AVAILABLE_STRING_SETS: readonly { label: string; strings: readonly number[] }[] = [
   { label: 'Strings 1-2-3 (High)', strings: [1, 2, 3] },
@@ -426,6 +427,9 @@ export const DrillSetupCard: FC = () => {
           </label>
         </div>
       </div>
+
+      {/* 7. Answer Input: mouse clicks or real guitar via mic / audio interface */}
+      <GuitarInputPanel />
 
       {/* Big Action Launch Button */}
       <div className="pt-2">

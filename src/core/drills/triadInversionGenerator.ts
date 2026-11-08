@@ -11,7 +11,7 @@ import {
   VoicingStringNote,
 } from '../models';
 import { CHORD_MAP, GUITAR_6_STANDARD, SCALE_MAP } from '../constants';
-import { findClosedTriadVoicings } from '../triadVoicings';
+import { compareVoicingsByNeckPosition, findClosedTriadVoicings } from '../triadVoicings';
 import {
   CHROMATIC_FLATS,
   CHROMATIC_SHARPS,
@@ -141,10 +141,16 @@ export function generateTriadInversionChallenge(
     ? `Strings ${selectedStringSet.join('-')} | Mark Root Pos, 1st Inv & 2nd Inv | Key: ${scaleRootName} ${scaleDef.name.split(' ')[0]}`
     : `Strings ${selectedStringSet.join('-')} | ${bassDesc} | Key: ${scaleRootName} ${scaleDef.name.split(' ')[0]}`;
 
+  // Each list ordered from the nut upward, so [0] is the shape nearest the nut
+  const voicingsOf = (inv: TriadInversion) =>
+    voicings
+      .filter((v) => v.inversion === inv)
+      .map((v) => v.positions)
+      .sort(compareVoicingsByNeckPosition);
   const inversionVoicings: Record<TriadInversion, ReadonlyArray<readonly FretPosition[]>> = {
-    ROOT: voicings.filter((v) => v.inversion === 'ROOT').map((v) => v.positions),
-    FIRST: voicings.filter((v) => v.inversion === 'FIRST').map((v) => v.positions),
-    SECOND: voicings.filter((v) => v.inversion === 'SECOND').map((v) => v.positions),
+    ROOT: voicingsOf('ROOT'),
+    FIRST: voicingsOf('FIRST'),
+    SECOND: voicingsOf('SECOND'),
   };
 
   const R = selectedTriad.rootPitch;

@@ -4,6 +4,7 @@ import {
   DrillConfig,
   FretboardViewState,
   FretPosition,
+  MidiNote,
   TriadInversion,
 } from '../core/models';
 import {
@@ -19,6 +20,19 @@ import { audioSynthAdapter } from '../adapters/audioSynth';
 import { wakeLockAdapter } from '../adapters/wakeLock';
 import { GUITAR_6_STANDARD } from '../core/constants';
 import { midiToFrequencyHz } from '../core/musicTheory';
+import {
+  appendHeardNote,
+  mapHeardNotesToPositions,
+  positionToMidi,
+} from '../core/drills/heardNoteMapper';
+import { getAscendingInversionSequence } from '../core/triadVoicings';
+import { guitarPitchInput } from '../adapters/guitarPitchInput';
+
+export type PracticeInputMode = 'POINTER' | 'GUITAR';
+export type GuitarInputStatus = 'OFF' | 'STARTING' | 'LISTENING' | 'ERROR';
+
+/** Ignore the mic right after a new prompt so the previous reveal strum doesn't count. */
+const PROMPT_START_DEAF_MS = 600;
 
 export interface PracticeEvaluation {
   isMatch: boolean;
@@ -155,6 +169,15 @@ export interface PracticeStore {
   previousPhase: 'PROMPTING' | 'REVEALING';
   userSelections: readonly FretPosition[];
   evaluation: PracticeEvaluation | null;
+  inputMode: PracticeInputMode;
+  guitarInputStatus: GuitarInputStatus;
+  guitarInputError: string | null;
+  /** Distinct MIDI notes heard from the guitar during the current prompt (oldest first) */
+  heardNotes: readonly MidiNote[];
+  /** Per-note feedback while still prompting (guitar input): correct/wrong only, never missed */
+  liveEvaluation: PracticeEvaluation | null;
+  /** All-inversions drill with guitar input: how many shapes (nut → 12th fret) are done */
+  inversionStep: number;
 
   // Actions
   startPractice: (customConfig?: Partial<DrillConfig>) => void;
@@ -168,18 +191,89 @@ export interface PracticeStore {
   toggleSolutionAudio: () => void;
   toggleUserSelection: (position: FretPosition) => void;
   clearUserSelection: () => void;
+  setInputMode: (mode: PracticeInputMode) => Promise<void>;
+  registerPlayedNote: (midi: MidiNote) => void;
 
   // View accessor for fretboard renderer
   getCurrentBoardState: (fallbackState: FretboardViewState) => FretboardViewState;
 }
 
 let timerIntervalId: ReturnType<typeof setInterval> | null = null;
+let unsubscribeGuitarInput: (() => void) | null = null;
 
 export const usePracticeStore = create<PracticeStore>((set, get) => {
   const clearTimer = () => {
     if (timerIntervalId !== null) {
       clearInterval(timerIntervalId);
       timerIntervalId = null;
+    }
+  };
+
+  /** Drone would be picked up by the mic (it sits on the root), so it stays off while listening. */
+  const startDroneForPrompt = () => {
+    const { config, inputMode } = get();
+    if (config.playDrone && inputMode !== 'GUITAR') {
+      audioSynthAdapter.startDrone(config.scaleContext.rootPitchClass, 0.22);
+    }
+  };
+
+  const onNewPrompt = () => {
+    startDroneForPrompt();
+    if (get().inputMode === 'GUITAR') {
+      guitarPitchInput.resetTracking(PROMPT_START_DEAF_MS);
+    }
+  };
+
+  /**
+   * All-inversions drill with guitar input: the three shapes must be played in order from
+   * the nut upward. Each note is judged against the shape that's due next, which also tells
+   * us where on the neck it was played. A completed shape locks in and clears its mistakes.
+   */
+  const registerSequentialInversionNote = (midi: MidiNote, challenge: DrillChallenge) => {
+    const { config, heardNotes, inversionStep } = get();
+    const sequence = getAscendingInversionSequence(challenge.inversionVoicings!);
+    const expected = sequence[inversionStep];
+    if (!expected) return;
+
+    const activeStrings = challenge.promptBoardState.filterMask.activeStrings;
+    const stepHeard = appendHeardNote(heardNotes, midi, 'TRIAD_INVERSION_HUNTER');
+    const expectedMidis = expected.positions.map((p) => positionToMidi(p, GUITAR_6_STANDARD));
+    const isStepComplete = expectedMidis.every((m) => stepHeard.includes(m));
+
+    const nextStep = isStepComplete ? inversionStep + 1 : inversionStep;
+    const lockedIn = sequence.slice(0, nextStep).flatMap((s) => s.positions);
+    const currentAttempt = isStepComplete
+      ? []
+      : mapHeardNotesToPositions(
+          stepHeard,
+          [expected.positions],
+          'TRIAD_INVERSION_HUNTER',
+          activeStrings,
+          config.fretZone,
+          GUITAR_6_STANDARD
+        );
+    const isCorrect = (p: FretPosition) =>
+      expected.positions.some((e) => e.stringIndex === p.stringIndex && e.fret === p.fret);
+
+    const foundInversions = sequence.slice(0, nextStep).map((s) => s.inversion);
+    const liveEvaluation: PracticeEvaluation = {
+      isMatch: nextStep >= sequence.length,
+      correctPositions: [...lockedIn, ...currentAttempt.filter(isCorrect)],
+      wrongPositions: currentAttempt.filter((p) => !isCorrect(p)),
+      missedPositions: [],
+      foundInversions,
+      missingInversions: sequence.slice(nextStep).map((s) => s.inversion),
+    };
+
+    set({
+      heardNotes: isStepComplete ? [] : stepHeard,
+      inversionStep: nextStep,
+      userSelections: [...lockedIn, ...currentAttempt],
+      liveEvaluation,
+    });
+
+    if (liveEvaluation.isMatch) {
+      triggerRevealTransition();
     }
   };
 
@@ -257,6 +351,12 @@ export const usePracticeStore = create<PracticeStore>((set, get) => {
     previousPhase: 'PROMPTING',
     userSelections: [],
     evaluation: null,
+    inputMode: 'POINTER',
+    guitarInputStatus: 'OFF',
+    guitarInputError: null,
+    heardNotes: [],
+    liveEvaluation: null,
+    inversionStep: 0,
 
     startPractice: (customConfig) => {
       clearTimer();
@@ -269,13 +369,14 @@ export const usePracticeStore = create<PracticeStore>((set, get) => {
         engine: newEngine,
         previousPhase: 'PROMPTING',
         userSelections: [],
+        heardNotes: [],
+        liveEvaluation: null,
+        inversionStep: 0,
         evaluation: null,
       });
 
       // Ambient Drone Pad & Screen Wake Lock
-      if (config.playDrone) {
-        audioSynthAdapter.startDrone(config.scaleContext.rootPitchClass, 0.22);
-      }
+      onNewPrompt();
       wakeLockAdapter.request().catch(() => {});
 
       runTimerLoop();
@@ -288,16 +389,19 @@ export const usePracticeStore = create<PracticeStore>((set, get) => {
       set({
         engine: INITIAL_DRILL_ENGINE_STATE,
         userSelections: [],
+        heardNotes: [],
+        liveEvaluation: null,
+        inversionStep: 0,
         evaluation: null,
       });
     },
 
     togglePause: () => {
-      const { engine, previousPhase, config } = get();
+      const { engine, previousPhase } = get();
       if (engine.phase === 'PAUSED') {
         set({ engine: resumeDrill(engine, previousPhase) });
-        if (config.playDrone && previousPhase === 'PROMPTING') {
-          audioSynthAdapter.startDrone(config.scaleContext.rootPitchClass, 0.22);
+        if (previousPhase === 'PROMPTING') {
+          startDroneForPrompt();
         }
       } else if (engine.phase === 'PROMPTING' || engine.phase === 'REVEALING') {
         if (engine.phase === 'PROMPTING') {
@@ -348,13 +452,14 @@ export const usePracticeStore = create<PracticeStore>((set, get) => {
         engine: newEngine,
         previousPhase: 'PROMPTING',
         userSelections: [],
+        heardNotes: [],
+        liveEvaluation: null,
+        inversionStep: 0,
         evaluation: null,
       });
 
-      // Resume drone for the new challenge prompt if enabled
-      if (config.playDrone) {
-        audioSynthAdapter.startDrone(config.scaleContext.rootPitchClass, 0.22);
-      }
+      // Resume drone / re-arm guitar input for the new challenge prompt
+      onNewPrompt();
     },
 
     updateConfig: (patch) => {
@@ -366,7 +471,7 @@ export const usePracticeStore = create<PracticeStore>((set, get) => {
       const next = !current;
       get().updateConfig({ playDrone: next });
       if (next && get().engine.phase === 'PROMPTING') {
-        audioSynthAdapter.startDrone(get().config.scaleContext.rootPitchClass, 0.22);
+        startDroneForPrompt();
       } else {
         audioSynthAdapter.stopDrone();
       }
@@ -408,7 +513,85 @@ export const usePracticeStore = create<PracticeStore>((set, get) => {
     },
 
     clearUserSelection: () => {
-      set({ userSelections: [] });
+      set({ userSelections: [], heardNotes: [], liveEvaluation: null, inversionStep: 0 });
+    },
+
+    setInputMode: async (mode) => {
+      if (mode === get().inputMode && get().guitarInputStatus !== 'ERROR') return;
+
+      if (mode === 'POINTER') {
+        unsubscribeGuitarInput?.();
+        unsubscribeGuitarInput = null;
+        guitarPitchInput.stop();
+        set({
+          inputMode: 'POINTER',
+          guitarInputStatus: 'OFF',
+          guitarInputError: null,
+          heardNotes: [],
+          liveEvaluation: null,
+          inversionStep: 0,
+        });
+        if (get().engine.phase === 'PROMPTING') startDroneForPrompt();
+        return;
+      }
+
+      set({ inputMode: 'GUITAR', guitarInputStatus: 'STARTING', guitarInputError: null });
+      audioSynthAdapter.stopDrone();
+      try {
+        await guitarPitchInput.start();
+        if (get().inputMode !== 'GUITAR') {
+          guitarPitchInput.stop(); // switched back while the permission prompt was open
+          return;
+        }
+        unsubscribeGuitarInput?.();
+        unsubscribeGuitarInput = guitarPitchInput.onEvent((event) => {
+          if (event.type === 'PITCH_DETECTED') get().registerPlayedNote(event.midiNote);
+        });
+        set({ guitarInputStatus: 'LISTENING' });
+      } catch (err) {
+        const message =
+          err instanceof DOMException && err.name === 'NotAllowedError'
+            ? 'Microphone access was blocked. Allow it in your browser’s site settings and try again.'
+            : err instanceof DOMException && err.name === 'NotFoundError'
+            ? 'No audio input found. Plug in your interface or microphone and try again.'
+            : err instanceof Error
+            ? err.message
+            : 'Could not start audio input.';
+        set({ guitarInputStatus: 'ERROR', guitarInputError: message });
+      }
+    },
+
+    registerPlayedNote: (midi) => {
+      const { engine, config, heardNotes } = get();
+      const challenge = engine.currentChallenge;
+      if (engine.phase !== 'PROMPTING' || !challenge) return;
+
+      if (config.exerciseType === 'TRIAD_ALL_INVERSIONS' && challenge.inversionVoicings) {
+        registerSequentialInversionNote(midi, challenge);
+        return;
+      }
+
+      const nextHeard = appendHeardNote(heardNotes, midi, config.exerciseType);
+      const userSelections = mapHeardNotesToPositions(
+        nextHeard,
+        challenge.validVoicings,
+        config.exerciseType,
+        challenge.promptBoardState.filterMask.activeStrings,
+        config.fretZone,
+        GUITAR_6_STANDARD
+      );
+      const evaluation = evaluateVoicingSelection(
+        userSelections,
+        challenge.validVoicings,
+        config.exerciseType,
+        challenge.inversionVoicings
+      );
+      set({ heardNotes: nextHeard, userSelections, liveEvaluation: evaluation });
+
+      // Played it right → reveal immediately instead of waiting out the timer
+      if (evaluation?.isMatch) {
+        triggerRevealTransition();
+      }
     },
 
     getCurrentBoardState: (fallbackState) => {

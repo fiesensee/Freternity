@@ -1,5 +1,8 @@
 import { useEffect, type FC } from 'react';
 import { usePracticeStore } from '../../store/usePracticeStore';
+import { GuitarInputPanel, midiToLabel } from './GuitarInputPanel';
+import { positionToMidi } from '../../core/drills/heardNoteMapper';
+import { GUITAR_6_STANDARD } from '../../core/constants';
 
 export interface PracticeHudProps {
   onOpenSettings?: () => void;
@@ -18,6 +21,12 @@ export const PracticeHud: FC<PracticeHudProps> = ({ onOpenSettings }) => {
   const userSelections = usePracticeStore((s) => s.userSelections);
   const evaluation = usePracticeStore((s) => s.evaluation);
   const clearUserSelection = usePracticeStore((s) => s.clearUserSelection);
+  const inputMode = usePracticeStore((s) => s.inputMode);
+  const guitarInputStatus = usePracticeStore((s) => s.guitarInputStatus);
+  const heardNotes = usePracticeStore((s) => s.heardNotes);
+  const liveEvaluation = usePracticeStore((s) => s.liveEvaluation);
+  const inversionStep = usePracticeStore((s) => s.inversionStep);
+  const isListening = inputMode === 'GUITAR' && guitarInputStatus === 'LISTENING';
 
   const { phase, currentChallenge, timeRemainingMs, totalDurationMs, stats } = engine;
 
@@ -72,6 +81,10 @@ export const PracticeHud: FC<PracticeHudProps> = ({ onOpenSettings }) => {
   ]);
 
   if (phase === 'IDLE' || !currentChallenge) return null;
+
+  const correctHeardMidis = new Set(
+    (liveEvaluation?.correctPositions ?? []).map((p) => positionToMidi(p, GUITAR_6_STANDARD))
+  );
 
   const showTimer = phase === 'PROMPTING' || (phase === 'REVEALING' && config.autoAdvance);
   const progressRatio =
@@ -170,6 +183,8 @@ export const PracticeHud: FC<PracticeHudProps> = ({ onOpenSettings }) => {
         </div>
       </div>
 
+      <GuitarInputPanel compact />
+
       {/* Progress Bar (visible during timed countdowns) */}
       {showTimer && (
         <div className="w-full bg-slate-950 h-2.5 rounded-full overflow-hidden border border-slate-800">
@@ -193,13 +208,68 @@ export const PracticeHud: FC<PracticeHudProps> = ({ onOpenSettings }) => {
           {currentChallenge.subPrompt}
         </p>
 
+        {/* Guitar input, all inversions: shapes must be played in order up the neck */}
+        {phase === 'PROMPTING' &&
+          isListening &&
+          config.exerciseType === 'TRIAD_ALL_INVERSIONS' && (
+            <div className="mt-3 flex flex-wrap items-center justify-center gap-2 text-xs font-mono">
+              <span className="text-slate-400">Nut → 12th fret:</span>
+              {[0, 1, 2].map((i) => {
+                const found = liveEvaluation?.foundInversions?.[i];
+                const isCurrent = i === inversionStep;
+                const label = found === 'ROOT' ? 'Root' : found === 'FIRST' ? '1st Inv' : '2nd Inv';
+                return (
+                  <span
+                    key={i}
+                    className={`px-2 py-0.5 rounded-lg border font-bold ${
+                      found
+                        ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                        : isCurrent
+                        ? 'bg-sky-500/20 text-sky-300 border-sky-500/50 animate-pulse'
+                        : 'bg-slate-900 text-slate-500 border-slate-800'
+                    }`}
+                  >
+                    {i + 1}. {found ? `✓ ${label}` : isCurrent ? 'playing…' : '?'}
+                  </span>
+                );
+              })}
+            </div>
+          )}
+
         {/* Interactive Selection Feedback during Prompting */}
         {phase === 'PROMPTING' && (
           <div className="mt-3 flex items-center justify-center gap-2 text-xs">
-            <span className="text-sky-400 font-mono font-medium">
-              🎸 Click fretboard to place notes ({userSelections.length}/
-              {config.exerciseType === 'TRIAD_ALL_INVERSIONS' ? '9' : '3'} placed)
-            </span>
+            {isListening ? (
+              <span className="text-sky-400 font-mono font-medium flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-sky-400 animate-pulse" />
+                🎤 Listening, pick the notes one by one
+                {heardNotes.length > 0 && (
+                  <span className="text-slate-400 flex items-center gap-1">
+                    · heard
+                    {heardNotes.map((midi) => {
+                      const isCorrect = correctHeardMidis.has(midi);
+                      return (
+                        <span
+                          key={midi}
+                          className={`px-1.5 py-0.5 rounded font-bold ${
+                            isCorrect
+                              ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                              : 'bg-rose-500/20 text-rose-300 border border-rose-500/40'
+                          }`}
+                        >
+                          {isCorrect ? '✓' : '✕'} {midiToLabel(midi)}
+                        </span>
+                      );
+                    })}
+                  </span>
+                )}
+              </span>
+            ) : (
+              <span className="text-sky-400 font-mono font-medium">
+                🎸 Click fretboard to place notes ({userSelections.length}/
+                {config.exerciseType === 'TRIAD_ALL_INVERSIONS' ? '9' : '3'} placed)
+              </span>
+            )}
             {userSelections.length > 0 && (
               <button
                 onClick={clearUserSelection}
