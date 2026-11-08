@@ -17,6 +17,7 @@ import {
   CHROMATIC_SHARPS,
   getDiatonicScaleSpelling,
   getDiatonicTriads,
+  getScaleShortName,
   isFlatKeySignature,
   midiToPitchClass,
   resolveRootNoteName,
@@ -138,8 +139,8 @@ export function generateTriadInversionChallenge(
     : `${chordName} (${selectedTriad.roman}) — ${invLabel}`;
 
   const subPrompt = isAllInversions
-    ? `Strings ${selectedStringSet.join('-')} | Mark Root Pos, 1st Inv & 2nd Inv | Key: ${scaleRootName} ${scaleDef.name.split(' ')[0]}`
-    : `Strings ${selectedStringSet.join('-')} | ${bassDesc} | Key: ${scaleRootName} ${scaleDef.name.split(' ')[0]}`;
+    ? `Strings ${selectedStringSet.join('-')} | Root pos, 1st & 2nd inversion | Key: ${scaleRootName} ${getScaleShortName(scaleDef)}`
+    : `Strings ${selectedStringSet.join('-')} | ${bassDesc} | Key: ${scaleRootName} ${getScaleShortName(scaleDef)}`;
 
   // Each list ordered from the nut upward, so [0] is the shape nearest the nut
   const voicingsOf = (inv: TriadInversion) =>

@@ -156,7 +156,7 @@ export const DEFAULT_DRILL_CONFIG: DrillConfig = {
   stringSets: [[1, 2, 3]],
   inversions: ['ROOT', 'FIRST', 'SECOND'],
   fretZone: { min: 0, max: 22 },
-  promptDurationMs: 8000,
+  promptDurationMs: 45000,
   revealDurationMs: 4000,
   autoAdvance: true,
   playDrone: true,

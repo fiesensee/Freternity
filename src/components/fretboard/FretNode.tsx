@@ -48,6 +48,8 @@ export const FretNode: FC<FretNodeProps> = ({
   const isTargetRoot = node.visualPriority === 'TARGET_ROOT';
   const isTargetTone = node.visualPriority === 'TARGET_TONE';
   const isContextScale = node.visualPriority === 'CONTEXT_SCALE';
+  const isScaleRoot = node.visualPriority === 'SCALE_ROOT';
+  const isScaleTone = node.visualPriority === 'SCALE_TONE';
 
   // Styling based on visual priority, user selection, and comparison status
   let fillColor = '#334155';
@@ -113,6 +115,18 @@ export const FretNode: FC<FretNodeProps> = ({
     }
     strokeWidth = 2;
     textColor = '#ffffff';
+    opacity = 1.0;
+  } else if (isScaleRoot) {
+    fillColor = '#e11d48'; // rose-600, same "root" colour as the chord root
+    strokeColor = '#ffe4e6';
+    strokeWidth = 2.5;
+    textColor = '#ffffff';
+    opacity = 1.0;
+  } else if (isScaleTone) {
+    fillColor = '#475569'; // slate-600
+    strokeColor = '#cbd5e1'; // slate-300
+    strokeWidth = 1.5;
+    textColor = '#f8fafc';
     opacity = 1.0;
   } else if (isContextScale) {
     if (node.isScaleRoot) {

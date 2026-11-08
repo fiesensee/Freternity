@@ -101,7 +101,8 @@ export const useFretboardStore = create<FretboardStore>((set, get) => {
             scaleLayer: nextScale,
             targetLayer: {
               ...prev.targetLayer,
-              enabled: true,
+              // Keep the chord hidden if the user hid it; it still follows the new key
+              enabled: prev.targetLayer.enabled,
               rootPitchClass: tonic.rootPitch,
               chordId: tonic.chordId,
               diatonicRomanNumeral: tonic.romanNumeral,
@@ -200,7 +201,8 @@ export const useFretboardStore = create<FretboardStore>((set, get) => {
           },
           targetLayer: {
             ...prev.targetLayer,
-            enabled: true,
+            // Keep the chord hidden if the user hid it; it still follows the new key
+            enabled: prev.targetLayer.enabled,
             rootPitchClass: tonic.rootPitch,
             chordId: tonic.chordId,
             diatonicRomanNumeral: tonic.romanNumeral,
@@ -220,7 +222,8 @@ export const useFretboardStore = create<FretboardStore>((set, get) => {
           scaleLayer: { ...prev.scaleLayer, rootPitchClass: root },
           targetLayer: {
             ...prev.targetLayer,
-            enabled: true,
+            // Keep the chord hidden if the user hid it; it still follows the new key
+            enabled: prev.targetLayer.enabled,
             rootPitchClass: tonic.rootPitch,
             chordId: tonic.chordId,
             diatonicRomanNumeral: tonic.romanNumeral,

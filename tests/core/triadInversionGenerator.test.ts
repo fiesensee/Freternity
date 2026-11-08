@@ -84,7 +84,7 @@ describe('triadInversionGenerator', () => {
 
     const challenge = generateTriadInversionChallenge(config, GUITAR_6_STANDARD);
     expect(challenge.headlinePrompt).toContain('All Inversions');
-    expect(challenge.subPrompt).toContain('Mark Root Pos, 1st Inv & 2nd Inv');
+    expect(challenge.subPrompt).toContain('Root pos, 1st & 2nd inversion');
     expect(challenge.inversionVoicings).toBeDefined();
     expect(challenge.inversionVoicings?.ROOT.length).toBeGreaterThan(0);
     expect(challenge.inversionVoicings?.FIRST.length).toBeGreaterThan(0);

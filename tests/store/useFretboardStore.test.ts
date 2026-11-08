@@ -96,4 +96,23 @@ describe('useFretboardStore', () => {
     expect(state.targetLayer.chordId).toBe('min');
     expect(state.targetLayer.diatonicRomanNumeral).toBe('i');
   });
+
+  it('keeps a hidden chord hidden when switching root, mode or relative mode', () => {
+    const store = useFretboardStore.getState;
+    store().setTargetLayer({ enabled: false });
+
+    store().setBaseScaleRoot(2);
+    expect(store().viewState.targetLayer.enabled).toBe(false);
+
+    store().setScaleLayer({ scaleId: 'dorian' });
+    expect(store().viewState.targetLayer.enabled).toBe(false);
+
+    store().pivotRelativeMode('ionian');
+    expect(store().viewState.targetLayer.enabled).toBe(false);
+
+    // Showing it again gives the tonic chord of the current key
+    store().setTargetLayer({ enabled: true });
+    const { scaleLayer, targetLayer } = store().viewState;
+    expect(targetLayer.rootPitchClass).toBe(scaleLayer.rootPitchClass);
+  });
 });

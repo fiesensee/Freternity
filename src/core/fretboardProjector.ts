@@ -152,6 +152,9 @@ export function projectFretboard(
         visualPriority = 'TARGET_ROOT';
       } else if (inTargetLayer) {
         visualPriority = 'TARGET_TONE';
+      } else if (!state.targetLayer.enabled) {
+        // No chord to focus on: the scale itself is the subject
+        visualPriority = isScaleRoot ? 'SCALE_ROOT' : 'SCALE_TONE';
       } else {
         visualPriority = 'CONTEXT_SCALE';
       }

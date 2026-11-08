@@ -7,12 +7,24 @@ import {
   getDiatonicScaleSpelling,
   getDiatonicTriads,
   getParentMajorRoot,
+  getScaleShortName,
   isFlatKeySignature,
   resolveRootNoteName,
 } from '../../core/musicTheory';
 import { CagedShapeId, PitchClass, TriadInversion } from '../../core/models';
 
 const CAGED_SHAPES: readonly CagedShapeId[] = ['C', 'A', 'G', 'E', 'D'];
+
+/** Adjacent 3-string sets an inversion can be shown on */
+const TRIAD_STRING_SETS: readonly (readonly number[])[] = [
+  [1, 2, 3],
+  [2, 3, 4],
+  [3, 4, 5],
+  [4, 5, 6],
+];
+
+const sameStrings = (a: readonly number[], b: readonly number[]) =>
+  a.length === b.length && [...a].sort().every((v, i) => v === [...b].sort()[i]);
 
 const ZOOM_PRESETS: readonly { label: string; window?: { minFret: number; maxFret: number } }[] = [
   { label: 'Full Neck', window: undefined },
@@ -52,13 +64,24 @@ export const LayerControlPanel: FC = () => {
   const setCagedOverlay = useFretboardStore((s) => s.setCagedOverlay);
   const setViewWindow = useFretboardStore((s) => s.setViewWindow);
   const setTargetChord = useFretboardStore((s) => s.setTargetChord);
+  const setActiveStrings = useFretboardStore((s) => s.setActiveStrings);
   const pivotRelativeMode = useFretboardStore((s) => s.pivotRelativeMode);
 
   const [modeShiftType, setModeShiftType] = useState<'relative' | 'parallel'>('relative');
 
   const { scaleLayer, targetLayer, filterMask } = viewState;
   const caged = filterMask.cagedOverlay;
-  const isMoreThanThreeStrings = filterMask.activeStrings.length > 3;
+  const activeTriadStringSet = TRIAD_STRING_SETS.find((set) =>
+    sameStrings(set, filterMask.activeStrings)
+  );
+
+  // An inversion only exists on 3 adjacent strings: pick a set automatically if needed
+  const selectInversion = (inversion: TriadInversion | undefined) => {
+    setTargetLayer({ activeInversion: inversion });
+    if (inversion && !activeTriadStringSet) {
+      setActiveStrings(TRIAD_STRING_SETS[0]);
+    }
+  };
 
   // Active scale definition & parent major key
   const activeScaleDef = SCALE_MAP[scaleLayer.scaleId] ?? SCALE_MAP['ionian'];
@@ -108,7 +131,10 @@ export const LayerControlPanel: FC = () => {
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-sm font-bold text-slate-200 flex items-center gap-2">
               <span className="w-2.5 h-2.5 rounded-full bg-sky-400" />
-              1. Base Layer (Key & Diatonic Mode)
+              Scale
+              <span className="text-[11px] font-normal text-slate-500">
+                {targetLayer.enabled ? '· shown faintly behind the chord' : '· all notes highlighted'}
+              </span>
             </h3>
             <button
               onClick={() => setScaleLayer({ preferFlats: !scaleLayer.preferFlats })}
@@ -149,30 +175,30 @@ export const LayerControlPanel: FC = () => {
           {/* Mode Switching Type: Relative vs Parallel */}
           <div className="mb-2 flex items-center justify-between bg-slate-950/60 p-1.5 rounded-lg border border-slate-800/60">
             <span className="text-[10px] uppercase font-bold text-slate-500 tracking-wider px-1">
-              Mode Shift:
+              Changing mode keeps:
             </span>
             <div className="flex items-center gap-1">
               <button
                 onClick={() => setModeShiftType('relative')}
-                title="Pivots root to stay in the same parent key notes"
+                title="E.g. A Aeolian → C Ionian: same notes, new root"
                 className={`text-[10px] px-2 py-0.5 rounded font-medium transition cursor-pointer ${
                   modeShiftType === 'relative'
                     ? 'bg-sky-600 text-white font-semibold'
                     : 'text-slate-400 hover:text-white'
                 }`}
               >
-                Relative (Keep Parent Key)
+                The notes
               </button>
               <button
                 onClick={() => setModeShiftType('parallel')}
-                title="Keeps the root note and changes scale formula"
+                title="E.g. A Aeolian → A Dorian: same root, different notes"
                 className={`text-[10px] px-2 py-0.5 rounded font-medium transition cursor-pointer ${
                   modeShiftType === 'parallel'
                     ? 'bg-sky-600 text-white font-semibold'
                     : 'text-slate-400 hover:text-white'
                 }`}
               >
-                Parallel (Keep Root)
+                The root
               </button>
             </div>
           </div>
@@ -239,7 +265,8 @@ export const LayerControlPanel: FC = () => {
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-sm font-bold text-rose-400 flex items-center gap-2">
               <span className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-pulse" />
-              2. Target Layer (Triad / Arpeggio)
+              Chord
+              <span className="text-[11px] font-normal text-slate-500">· highlighted on top</span>
             </h3>
             <button
               onClick={() => setTargetLayer({ enabled: !targetLayer.enabled })}
@@ -249,14 +276,14 @@ export const LayerControlPanel: FC = () => {
                   : 'bg-slate-800 text-slate-500 border border-slate-700'
               }`}
             >
-              {targetLayer.enabled ? 'ACTIVE' : 'OFF'}
+              {targetLayer.enabled ? 'Shown' : 'Hidden'}
             </button>
           </div>
 
           {/* Diatonic Chord Shortcuts */}
           <div className="mb-4">
             <label className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block mb-1.5">
-              Diatonic Triads in {getNoteName(scaleLayer.rootPitchClass)} {activeScaleDef.name.split(' ')[0]}:
+              Chords in {getNoteName(scaleLayer.rootPitchClass)} {getScaleShortName(activeScaleDef)}:
             </label>
             <div className="grid grid-cols-7 gap-1">
               {diatonicTriads.map((dt) => {
@@ -268,7 +295,12 @@ export const LayerControlPanel: FC = () => {
                 return (
                   <button
                     key={dt.romanNumeral}
-                    onClick={() => setTargetChord(dt.rootPitch, dt.chordId, dt.romanNumeral)}
+                    onClick={() =>
+                      isSelected
+                        ? setTargetLayer({ enabled: false })
+                        : setTargetChord(dt.rootPitch, dt.chordId, dt.romanNumeral)
+                    }
+                    title={isSelected ? 'Click again to show the whole scale' : undefined}
                     className={`flex flex-col items-center py-2 rounded-lg transition cursor-pointer ${
                       isSelected
                         ? 'bg-rose-600 text-white shadow ring-1 ring-rose-400 scale-[1.02]'
@@ -287,46 +319,29 @@ export const LayerControlPanel: FC = () => {
           <div>
             <div className="flex items-center justify-between mb-1.5">
               <label className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
-                Triad Inversion Focus:
+                Inversion:
               </label>
-              {targetLayer.activeInversion && !isMoreThanThreeStrings && (
-                <button
-                  onClick={() => setTargetLayer({ activeInversion: undefined })}
-                  className="text-[10px] text-slate-400 hover:text-slate-200 underline cursor-pointer"
-                >
-                  Clear Focus
-                </button>
-              )}
             </div>
-            <div className="grid grid-cols-3 gap-1.5">
+            <div className="grid grid-cols-4 gap-1.5">
               {(
                 [
-                  { id: 'ROOT', label: 'Root Pos' },
-                  { id: 'FIRST', label: '1st Inv' },
-                  { id: 'SECOND', label: '2nd Inv' },
+                  { id: undefined, label: 'All notes', hint: 'Show every chord tone on the neck' },
+                  { id: 'ROOT', label: 'Root pos', hint: 'Root in the bass' },
+                  { id: 'FIRST', label: '1st inv', hint: '3rd in the bass' },
+                  { id: 'SECOND', label: '2nd inv', hint: '5th in the bass' },
                 ] as const
               ).map((inv) => {
-                const isSelected = !isMoreThanThreeStrings && targetLayer.activeInversion === inv.id;
+                const isSelected = (targetLayer.activeInversion ?? undefined) === inv.id;
                 return (
                   <button
-                    key={inv.id}
-                    disabled={isMoreThanThreeStrings}
-                    title={
-                      isMoreThanThreeStrings
-                        ? 'Select 3 strings to focus triad inversions'
-                        : `Focus ${inv.label}`
-                    }
-                    onClick={() =>
-                      setTargetLayer({
-                        activeInversion: isSelected ? undefined : (inv.id as TriadInversion),
-                      })
-                    }
-                    className={`py-1.5 text-xs rounded-lg font-medium transition text-center select-none ${
-                      isMoreThanThreeStrings
-                        ? 'bg-slate-900/60 text-slate-600 border border-slate-800/80 cursor-not-allowed opacity-50'
-                        : isSelected
-                        ? 'bg-rose-600 text-white shadow-sm ring-1 ring-rose-400/30 font-bold cursor-pointer'
-                        : 'bg-slate-800/80 text-slate-400 hover:bg-slate-800 hover:text-slate-200 cursor-pointer'
+                    key={inv.label}
+                    title={inv.hint}
+                    disabled={!targetLayer.enabled}
+                    onClick={() => selectInversion(inv.id as TriadInversion | undefined)}
+                    className={`py-1.5 text-xs rounded-lg font-medium transition text-center select-none cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
+                      isSelected
+                        ? 'bg-rose-600 text-white shadow-sm ring-1 ring-rose-400/30 font-bold'
+                        : 'bg-slate-800/80 text-slate-400 hover:bg-slate-800 hover:text-slate-200'
                     }`}
                   >
                     {inv.label}
@@ -334,13 +349,28 @@ export const LayerControlPanel: FC = () => {
                 );
               })}
             </div>
-            <p className="text-[10px] text-slate-500 mt-2 italic">
-              {isMoreThanThreeStrings
-                ? 'Select 3 strings to enable 3-string triad inversion focus'
-                : targetLayer.activeInversion
-                ? 'Highlights the isolated 3-note inversion on active strings (span ≤ 4)'
-                : 'No inversion focus: showing all target triad chord tones across the board'}
-            </p>
+
+            {targetLayer.activeInversion && (
+              <div className="mt-2 flex items-center gap-1.5">
+                <span className="text-[11px] text-slate-500">on strings</span>
+                {TRIAD_STRING_SETS.map((set) => {
+                  const isSelected = activeTriadStringSet === set;
+                  return (
+                    <button
+                      key={set.join('')}
+                      onClick={() => setActiveStrings(set)}
+                      className={`px-2 py-0.5 text-[11px] font-mono rounded-md transition cursor-pointer ${
+                        isSelected
+                          ? 'bg-sky-600 text-white font-bold'
+                          : 'bg-slate-800/80 text-slate-400 hover:text-slate-200'
+                      }`}
+                    >
+                      {set.join('-')}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -351,7 +381,7 @@ export const LayerControlPanel: FC = () => {
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-sm font-bold text-sky-400 flex items-center gap-2">
               <span className="w-2.5 h-2.5 rounded-full bg-sky-500" />
-              3. CAGED Stencil & Zoom
+              <span title="Outlines one of the five CAGED areas of the neck">CAGED shape</span>
             </h3>
             <button
               onClick={() =>
@@ -367,7 +397,7 @@ export const LayerControlPanel: FC = () => {
                   : 'bg-slate-800 text-slate-500 border border-slate-700'
               }`}
             >
-              {caged?.enabled ? 'ACTIVE' : 'OFF'}
+              {caged?.enabled ? 'Shown' : 'Hidden'}
             </button>
           </div>
 
@@ -375,7 +405,7 @@ export const LayerControlPanel: FC = () => {
           <div className="mb-4">
             <div className="flex items-center justify-between mb-1.5">
               <label className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
-                Shape:
+                Built on:
               </label>
               <div className="flex items-center gap-1">
                 {(['SCALE_ROOT', 'TARGET_ROOT'] as const).map((ref) => (
@@ -394,7 +424,7 @@ export const LayerControlPanel: FC = () => {
                         : 'bg-slate-800 text-slate-400'
                     }`}
                   >
-                    {ref === 'SCALE_ROOT' ? 'Scale Root' : 'Target Root'}
+                    {ref === 'SCALE_ROOT' ? 'Scale root' : 'Chord root'}
                   </button>
                 ))}
               </div>
@@ -422,7 +452,7 @@ export const LayerControlPanel: FC = () => {
           {/* Mobile Fret Window Zoom */}
           <div>
             <label className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block mb-1.5">
-              Viewport Zoom:
+              Zoom:
             </label>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-1">
               {ZOOM_PRESETS.map((preset) => {

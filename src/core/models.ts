@@ -121,7 +121,18 @@ export interface ComputedFretNode {
   // Geometric / Filter Metadata
   inCagedStencil: boolean;
   isMaskedOut: boolean;            // True if dimmed by string mask or fret range
-  visualPriority: 'HIDDEN' | 'GHOST' | 'CONTEXT_SCALE' | 'TARGET_TONE' | 'TARGET_ROOT';
+  /**
+   * SCALE_ROOT / SCALE_TONE: scale notes in focus (no chord highlighted).
+   * CONTEXT_SCALE: scale notes dimmed behind a highlighted chord.
+   */
+  visualPriority:
+    | 'HIDDEN'
+    | 'GHOST'
+    | 'CONTEXT_SCALE'
+    | 'SCALE_TONE'
+    | 'SCALE_ROOT'
+    | 'TARGET_TONE'
+    | 'TARGET_ROOT';
   displayLabel: string;            // Resolved text to render inside the SVG circle
 }
 
@@ -173,7 +184,7 @@ export interface DrillConfig {
   stringSets: ReadonlyArray<readonly number[]>; // e.g., [[1, 2, 3], [2, 3, 4]]
   inversions: readonly TriadInversion[];
   fretZone: { min: number; max: number };
-  promptDurationMs: number;        // e.g., 8000
+  promptDurationMs: number;        // e.g., 45000
   revealDurationMs: number;        // e.g., 4000
   autoAdvance: boolean;
   playDrone: boolean;

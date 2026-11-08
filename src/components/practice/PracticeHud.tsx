@@ -1,4 +1,4 @@
-import { useEffect, type FC } from 'react';
+import { useEffect, useRef, useState, type FC } from 'react';
 import { usePracticeStore } from '../../store/usePracticeStore';
 import { GuitarInputPanel, midiToLabel } from './GuitarInputPanel';
 import { positionToMidi } from '../../core/drills/heardNoteMapper';
@@ -16,8 +16,6 @@ export const PracticeHud: FC<PracticeHudProps> = ({ onOpenSettings }) => {
   const revealNow = usePracticeStore((s) => s.revealNow);
   const submitSelfGrade = usePracticeStore((s) => s.submitSelfGrade);
   const advanceToNextChallenge = usePracticeStore((s) => s.advanceToNextChallenge);
-  const toggleDroneAudio = usePracticeStore((s) => s.toggleDroneAudio);
-  const toggleSolutionAudio = usePracticeStore((s) => s.toggleSolutionAudio);
   const userSelections = usePracticeStore((s) => s.userSelections);
   const evaluation = usePracticeStore((s) => s.evaluation);
   const clearUserSelection = usePracticeStore((s) => s.clearUserSelection);
@@ -96,20 +94,19 @@ export const PracticeHud: FC<PracticeHudProps> = ({ onOpenSettings }) => {
 
   return (
     <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-2xl flex flex-col gap-4">
-      {/* Top Status Bar: Phase badge, Timer, Stats, Audio Toggles */}
+      {/* Top bar: phase + timer · score · one menu for everything secondary */}
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800/80 pb-3">
         <div className="flex items-center gap-2.5">
-          {/* Phase Badge */}
           {phase === 'PROMPTING' && (
             <span className="px-2.5 py-1 text-xs font-mono font-bold rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 flex items-center gap-1.5">
               <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping" />
-              THINK & PLAY
+              YOUR TURN
             </span>
           )}
           {phase === 'REVEALING' && (
             <span className="px-2.5 py-1 text-xs font-mono font-bold rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 flex items-center gap-1.5">
               <span className="w-2 h-2 rounded-full bg-emerald-400" />
-              SOLUTION REVEALED
+              SOLUTION
             </span>
           )}
           {phase === 'PAUSED' && (
@@ -118,72 +115,31 @@ export const PracticeHud: FC<PracticeHudProps> = ({ onOpenSettings }) => {
             </span>
           )}
 
-          {/* Time Remaining - only shown when transition is timed */}
           {showTimer ? (
-            <span className="text-sm font-mono font-bold text-slate-200">
-              {secondsLeft}s
-            </span>
+            <span className="text-sm font-mono font-bold text-slate-200">{secondsLeft}s</span>
           ) : (
-            <span className="text-xs font-mono text-emerald-400/90 font-medium">
-              Awaiting self-grade
-            </span>
+            phase === 'REVEALING' && (
+              <span className="text-xs font-mono text-emerald-400/90 font-medium">
+                Did you get it?
+              </span>
+            )
           )}
         </div>
 
-        {/* Center Stats: Always display Right / Wrong regardless of mode */}
-        <div className="flex items-center gap-2 sm:gap-3 text-xs font-mono">
-          <div className="flex items-center gap-1.5 px-2 sm:px-2.5 py-0.5 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-300">
-            <span className="font-semibold text-emerald-400">✓ Right:</span>
-            <strong className="text-white text-xs sm:text-sm font-bold">{stats.passed}</strong>
-          </div>
-          <div className="flex items-center gap-1.5 px-2 sm:px-2.5 py-0.5 rounded-lg bg-rose-500/15 border border-rose-500/30 text-rose-300">
-            <span className="font-semibold text-rose-400">✕ Wrong:</span>
-            <strong className="text-white text-xs sm:text-sm font-bold">{stats.missed}</strong>
-          </div>
-          <div className="text-slate-400 text-[11px] hidden sm:block">
-            Completed: <strong className="text-slate-200">{stats.total}</strong>
-            {stats.total > 0 && (
-              <span className="ml-1.5 text-slate-400">({accuracyPercent}%)</span>
-            )}
-          </div>
-        </div>
-
-        {/* Audio Toggles & Settings */}
         <div className="flex items-center gap-2">
-          <button
-            onClick={toggleDroneAudio}
-            title="Toggle Web Audio Root Drone Synth"
-            className={`px-2 py-1 text-xs rounded-md font-mono transition cursor-pointer ${
-              config.playDrone
-                ? 'bg-sky-600/30 text-sky-300 border border-sky-500/40'
-                : 'bg-slate-800 text-slate-500 border border-slate-700'
-            }`}
+          <span
+            title={`${stats.passed} right, ${stats.missed} wrong`}
+            className="px-2.5 py-1 rounded-lg bg-slate-950 border border-slate-800 text-xs font-mono flex items-center gap-2"
           >
-            🔊 Drone: {config.playDrone ? 'ON' : 'OFF'}
-          </button>
-          <button
-            onClick={toggleSolutionAudio}
-            title="Strum triad pitches on reveal"
-            className={`px-2 py-1 text-xs rounded-md font-mono transition cursor-pointer ${
-              config.playSolutionAudioOnReveal
-                ? 'bg-rose-600/30 text-rose-300 border border-rose-500/40'
-                : 'bg-slate-800 text-slate-500 border border-slate-700'
-            }`}
-          >
-            🎸 Strum: {config.playSolutionAudioOnReveal ? 'ON' : 'OFF'}
-          </button>
-          {onOpenSettings && (
-            <button
-              onClick={onOpenSettings}
-              className="px-2.5 py-1 text-xs rounded-md bg-slate-800 hover:bg-slate-700 text-slate-300 transition cursor-pointer"
-            >
-              ⚙ Drill Settings
-            </button>
-          )}
+            <span className="text-emerald-400 font-bold">✓ {stats.passed}</span>
+            <span className="text-rose-400 font-bold">✕ {stats.missed}</span>
+            {stats.total > 0 && <span className="text-slate-400">{accuracyPercent}%</span>}
+          </span>
+          <HudMenu onOpenSettings={onOpenSettings} />
         </div>
       </div>
 
-      <GuitarInputPanel compact />
+      <GuitarInputPanel variant="status" />
 
       {/* Progress Bar (visible during timed countdowns) */}
       {showTimer && (
@@ -457,6 +413,113 @@ export const PracticeHud: FC<PracticeHudProps> = ({ onOpenSettings }) => {
           )}
         </div>
       </div>
+    </div>
+  );
+};
+
+/** Secondary drill controls, kept out of the way of the prompt. */
+const HudMenu: FC<{ onOpenSettings?: () => void }> = ({ onOpenSettings }) => {
+  const config = usePracticeStore((s) => s.config);
+  const inputMode = usePracticeStore((s) => s.inputMode);
+  const toggleDroneAudio = usePracticeStore((s) => s.toggleDroneAudio);
+  const toggleSolutionAudio = usePracticeStore((s) => s.toggleSolutionAudio);
+  const [isOpen, setIsOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const close = (e: MouseEvent) => {
+      if (!menuRef.current?.contains(e.target as Node)) setIsOpen(false);
+    };
+    const closeOnEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        // Close the menu instead of exiting the drill
+        e.stopImmediatePropagation();
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', close);
+    window.addEventListener('keydown', closeOnEscape, true);
+    return () => {
+      document.removeEventListener('mousedown', close);
+      window.removeEventListener('keydown', closeOnEscape, true);
+    };
+  }, [isOpen]);
+
+  const switchRow = (label: string, hint: string, checked: boolean, onToggle: () => void, disabled = false) => (
+    <label
+      className={`flex items-start justify-between gap-3 py-1.5 ${
+        disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
+      }`}
+    >
+      <span>
+        <span className="block text-xs text-slate-200 font-medium">{label}</span>
+        <span className="block text-[11px] text-slate-500">{hint}</span>
+      </span>
+      <input
+        type="checkbox"
+        checked={checked}
+        disabled={disabled}
+        onChange={onToggle}
+        className="accent-sky-500 w-4 h-4 mt-0.5 cursor-pointer"
+      />
+    </label>
+  );
+
+  return (
+    <div className="relative" ref={menuRef}>
+      <button
+        onClick={() => setIsOpen((v) => !v)}
+        aria-expanded={isOpen}
+        title="Sound, input & drill settings"
+        className={`px-2.5 py-1 text-xs rounded-lg border transition cursor-pointer ${
+          isOpen
+            ? 'bg-slate-700 text-white border-slate-600'
+            : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700'
+        }`}
+      >
+        ⚙ Options
+      </button>
+
+      {isOpen && (
+        <div className="absolute right-0 top-full mt-2 z-30 w-80 max-w-[calc(100vw-2rem)] bg-slate-900 border border-slate-700 rounded-xl shadow-2xl p-3 flex flex-col gap-3">
+          <div>
+            <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">Sound</div>
+            {switchRow(
+              'Drone',
+              inputMode === 'GUITAR'
+                ? 'Muted while listening to your guitar'
+                : 'A soft pad on the key’s root note',
+              config.playDrone,
+              toggleDroneAudio,
+              inputMode === 'GUITAR'
+            )}
+            {switchRow(
+              'Play the solution',
+              'Plays the triad when the solution is shown',
+              config.playSolutionAudioOnReveal,
+              toggleSolutionAudio
+            )}
+          </div>
+
+          <div className="border-t border-slate-800 pt-3">
+            <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-2">Answer with</div>
+            <GuitarInputPanel variant="toggle" />
+          </div>
+
+          {onOpenSettings && (
+            <button
+              onClick={() => {
+                setIsOpen(false);
+                onOpenSettings();
+              }}
+              className="border-t border-slate-800 pt-3 text-left text-xs text-slate-300 hover:text-white cursor-pointer"
+            >
+              Change drill settings…
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 };

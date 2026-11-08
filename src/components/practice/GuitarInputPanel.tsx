@@ -27,11 +27,14 @@ function useInputMonitor(active: boolean): InputMonitorSnapshot | null {
 }
 
 export interface GuitarInputPanelProps {
-  /** Compact single-row layout for the running drill HUD */
-  compact?: boolean;
+  /**
+   * full: setup screen section · toggle: just the input switch (drill menu) ·
+   * status: just the level meter / errors while a drill runs
+   */
+  variant?: 'full' | 'toggle' | 'status';
 }
 
-export const GuitarInputPanel: FC<GuitarInputPanelProps> = ({ compact = false }) => {
+export const GuitarInputPanel: FC<GuitarInputPanelProps> = ({ variant = 'full' }) => {
   const inputMode = usePracticeStore((s) => s.inputMode);
   const status = usePracticeStore((s) => s.guitarInputStatus);
   const error = usePracticeStore((s) => s.guitarInputError);
@@ -65,7 +68,7 @@ export const GuitarInputPanel: FC<GuitarInputPanelProps> = ({ compact = false })
     <button
       onClick={() => setInputMode(mode)}
       disabled={mode === 'GUITAR' && !supported}
-      className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
+      className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
         inputMode === mode
           ? 'bg-sky-600 text-white shadow-sm'
           : 'text-slate-400 hover:text-white'
@@ -126,10 +129,19 @@ export const GuitarInputPanel: FC<GuitarInputPanelProps> = ({ compact = false })
       </span>
     ) : null;
 
-  if (compact) {
+  if (variant === 'toggle') {
+    return (
+      <div className="flex flex-col gap-2">
+        {toggle}
+        {statusLine}
+      </div>
+    );
+  }
+
+  if (variant === 'status') {
+    if (inputMode !== 'GUITAR') return null;
     return (
       <div className="flex flex-wrap items-center gap-3">
-        {toggle}
         {isListening && meter}
         {statusLine}
       </div>
@@ -137,11 +149,8 @@ export const GuitarInputPanel: FC<GuitarInputPanelProps> = ({ compact = false })
   }
 
   return (
-    <div className="bg-slate-950/70 border border-slate-800/80 p-4 sm:p-5 rounded-2xl flex flex-col gap-3">
-      <label className="text-xs font-semibold uppercase tracking-wider text-slate-300 flex items-center gap-2">
-        <span className="w-2 h-2 rounded-full bg-sky-500" />
-        Answer Input
-      </label>
+    <section className="flex flex-col gap-2">
+      <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-300">Answer with</h3>
       {toggle}
 
       {!supported && (
@@ -214,6 +223,6 @@ export const GuitarInputPanel: FC<GuitarInputPanelProps> = ({ compact = false })
           </ul>
         </div>
       )}
-    </div>
+    </section>
   );
 };

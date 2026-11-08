@@ -4,6 +4,30 @@ import { FretboardViewState } from '../../src/core/models';
 import { GUITAR_6_STANDARD } from '../../src/core/constants';
 
 describe('fretboardProjector', () => {
+  it('highlights the whole scale when no chord is selected', () => {
+    const state: FretboardViewState = {
+      instrumentId: 'guitar_6_standard',
+      labelMode: 'NOTE_NAME',
+      scaleLayer: { enabled: true, rootPitchClass: 9, preferFlats: true, scaleId: 'aeolian' },
+      targetLayer: { enabled: false, rootPitchClass: 5, chordId: 'maj' },
+      filterMask: { activeStrings: [1, 2, 3, 4, 5, 6], fretRange: { min: 0, max: 22 } },
+    };
+    const matrix = projectFretboard(state, GUITAR_6_STANDARD);
+
+    expect(matrix[5][5].noteName).toBe('A'); // low E string, fret 5
+    expect(matrix[5][5].visualPriority).toBe('SCALE_ROOT');
+    expect(matrix[5][3].noteName).toBe('G');
+    expect(matrix[5][3].visualPriority).toBe('SCALE_TONE');
+    expect(matrix[5][4].visualPriority).toBe('HIDDEN'); // G# is not in A minor
+
+    // With a chord shown, the scale goes back to being dimmed context
+    const withChord = projectFretboard(
+      { ...state, targetLayer: { ...state.targetLayer, enabled: true } },
+      GUITAR_6_STANDARD
+    );
+    expect(withChord[5][3].visualPriority).toBe('CONTEXT_SCALE');
+  });
+
   it('accurately computes A Aeolian with F Major triad overlay (1st Inversion on strings 1-2-3)', () => {
     const state: FretboardViewState = {
       instrumentId: 'guitar_6_standard',

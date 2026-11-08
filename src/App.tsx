@@ -4,6 +4,7 @@ import { usePracticeStore } from './store/usePracticeStore';
 import { GUITAR_6_STANDARD } from './core/constants';
 import { projectFretboard } from './core/fretboardProjector';
 import { ComputedFretNode } from './core/models';
+import { FretboardLegend, type LegendContext } from './components/fretboard';
 import { FretboardSvg } from './components/fretboard';
 import { audioSynthAdapter } from './adapters/audioSynth';
 import { APP_VERSION } from './version';
@@ -86,6 +87,18 @@ export const App: FC = () => {
     });
     return map;
   }, [isPracticing, practicePhase, evaluation, liveEvaluation]);
+
+  const legendContext: LegendContext = !isPracticing
+    ? { kind: 'explore', viewState: effectiveViewState }
+    : practicePhase === 'REVEALING'
+    ? {
+        kind: 'reveal',
+        viewState: effectiveViewState,
+        hasCorrect: (evaluation?.correctPositions.length ?? 0) > 0,
+        hasWrong: (evaluation?.wrongPositions.length ?? 0) > 0,
+        hasMissed: (evaluation?.missedPositions.length ?? 0) > 0,
+      }
+    : { kind: 'prompt', inputMode };
 
   const handleNodeClick = (node: ComputedFretNode) => {
     if (isPracticing && practicePhase === 'PROMPTING' && inputMode === 'POINTER') {
@@ -196,7 +209,7 @@ export const App: FC = () => {
             <div className="mb-3 flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <span className="text-xs font-bold uppercase tracking-wider text-slate-300">
-                  {isPracticing ? 'Practice Fretboard' : 'Neck Projection'}
+                  {isPracticing ? 'Practice Fretboard' : 'Fretboard'}
                 </span>
                 {viewWindow && (
                   <span className="text-[11px] bg-emerald-500/20 text-emerald-300 font-mono px-2 py-0.5 rounded border border-emerald-500/30">
@@ -234,64 +247,14 @@ export const App: FC = () => {
                   : undefined
               }
             />
+
+            <FretboardLegend context={legendContext} />
           </div>
         )}
 
-        {/* Explore Mode Controls (Base Key/Mode, Target Triads, CAGED) */}
+        {/* Explore controls: scale, chord, CAGED shape & zoom */}
         {activeTab === 'explore' && !isPracticing && <LayerControlPanel />}
 
-        {/* Legend */}
-        {(activeTab === 'explore' || isPracticing) && (
-          <footer className="py-4 border-t border-slate-800/80 flex flex-wrap items-center justify-center gap-6 text-xs text-slate-400">
-            {isPracticing ? (
-              <>
-                <div className="flex items-center gap-2">
-                  <span className="w-3.5 h-3.5 rounded-full bg-sky-600 border border-sky-300 inline-block" />
-                  <span>Your Note Pick</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="w-3.5 h-3.5 rounded-full bg-emerald-600 border border-emerald-300 inline-block text-[9px] text-white flex items-center justify-center font-bold">
-                    ✓
-                  </span>
-                  <span>Correct Pick</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="w-3.5 h-3.5 rounded-full bg-rose-600 border border-rose-300 inline-block text-[9px] text-white flex items-center justify-center font-bold">
-                    ✕
-                  </span>
-                  <span>Wrong Pick</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="w-3.5 h-3.5 rounded-full bg-amber-600 border border-amber-200 inline-block" />
-                  <span>Target Chord Tone</span>
-                </div>
-              </>
-            ) : (
-              <>
-                <div className="flex items-center gap-2">
-                  <span className="w-3.5 h-3.5 rounded-full bg-rose-600 border border-rose-200 inline-block" />
-                  <span>Target Root</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="w-3.5 h-3.5 rounded-full bg-sky-600 border border-sky-200 inline-block" />
-                  <span>Target 3rd</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="w-3.5 h-3.5 rounded-full bg-amber-600 border border-amber-200 inline-block" />
-                  <span>Target 5th</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="w-3.5 h-3.5 rounded-full bg-slate-800 border border-slate-600 inline-block opacity-45" />
-                  <span>Context Base Scale</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="w-3.5 h-3.5 rounded-full border border-sky-400 border-dashed inline-block" />
-                  <span>Active Triad Voicing</span>
-                </div>
-              </>
-            )}
-          </footer>
-        )}
       </main>
 
       {/* Drill Settings Modal (accessible during running drill) */}

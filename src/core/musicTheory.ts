@@ -261,3 +261,10 @@ export function getDiatonicTriads(
     };
   });
 }
+
+/** Short, readable scale name for labels: "Major", "Minor", "Dorian", … */
+export function getScaleShortName(scale: ScaleDefinition): string {
+  if (scale.id === 'ionian') return 'Major';
+  if (scale.id === 'aeolian') return 'Minor';
+  return scale.name;
+}
