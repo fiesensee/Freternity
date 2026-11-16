@@ -35,4 +35,14 @@ describe('drill settings summary', () => {
     expect(summarizeDrillOptions({ ...caged, cagedShapes: ['G', 'E'] })[0]).toBe('G, E shapes');
     expect(summarizeDrillOptions({ ...caged, cagedShapes: ['D'] })[0]).toBe('D shape');
   });
+
+  it('summarizes the scale-in-time drill by tempo, grid and positions', () => {
+    const rhythm = {
+      ...DEFAULT_DRILL_CONFIG,
+      exerciseType: 'SCALE_RHYTHM' as const,
+      rhythm: { bpm: 90, subdivision: 4 as const },
+    };
+    expect(summarizeDrillOptions(rhythm)).toEqual(['sixteenths at 90 bpm', 'all 5 positions', 'next after 4s']);
+    expect(summarizeDrillOptions({ ...rhythm, cagedShapes: ['E'] })[1]).toBe('E position');
+  });
 });

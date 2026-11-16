@@ -1,6 +1,12 @@
 import { useState, type FC, type ReactNode } from 'react';
 import { usePracticeStore } from '../../store/usePracticeStore';
-import { CagedShapeId, DrillConfig, PitchClass, TriadInversion } from '../../core/models';
+import {
+  CagedShapeId,
+  DrillConfig,
+  PitchClass,
+  RhythmSubdivision,
+  TriadInversion,
+} from '../../core/models';
 import { DIATONIC_MODES, SCALE_MAP } from '../../core/constants';
 import {
   getScaleShortName,
@@ -9,6 +15,8 @@ import {
 } from '../../core/musicTheory';
 import { formatStringSet } from '../../core/stringNumbering';
 import { ALL_CAGED_SHAPES } from '../../core/drills/cagedChordShapeGenerator';
+import { SUBDIVISION_NAMES } from '../../core/drills/scaleRhythmGenerator';
+import { getClickVolume, setClickVolume } from '../../adapters/rhythm/rhythmPrefs';
 
 /**
  * Building blocks for drill settings, shared by the setup screen and the in-drill
@@ -102,7 +110,18 @@ const DRILL_TYPES: readonly {
     title: 'Chord in a CAGED shape',
     description: 'You get a chord and a shape, e.g. “Am in the G shape”. Play that exact shape, not a neighbouring one.',
   },
+  {
+    id: 'SCALE_RHYTHM',
+    title: 'Scale in time',
+    description: 'Play the key’s scale in one CAGED position, up and down, to a click. Notes and timing are scored. Needs your guitar.',
+  },
 ];
+
+/** Drills where the player has a fixed time limit to find the answer */
+export const hasThinkTime = (exerciseType: DrillConfig['exerciseType']) => exerciseType !== 'SCALE_RHYTHM';
+
+const RHYTHM_GRIDS: readonly RhythmSubdivision[] = [1, 2, 4];
+const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
 export const DrillTypePicker: FC<{ compact?: boolean }> = ({ compact = false }) => {
   const exerciseType = usePracticeStore((s) => s.config.exerciseType);
@@ -126,7 +145,7 @@ export const DrillTypePicker: FC<{ compact?: boolean }> = ({ compact = false }) 
   }
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
       {DRILL_TYPES.map((d) => {
         const selected = exerciseType === d.id;
         return (
@@ -287,11 +306,62 @@ export const DrillOptions: FC = () => {
   };
 
   const isCagedDrill = config.exerciseType === 'CAGED_CHORD_SHAPE';
+  const isRhythmDrill = config.exerciseType === 'SCALE_RHYTHM';
+  const usesShapes = isCagedDrill || isRhythmDrill;
+  const [clickVolume, setClickVolumeState] = useState(getClickVolume);
 
   return (
     <div className="flex flex-col gap-5">
-      {isCagedDrill && (
-        <SettingsSection title="Shapes" hint="picked at random from these">
+      {isRhythmDrill && (
+        <>
+          <SettingsSection title={`Tempo · ${config.rhythm.bpm} bpm`}>
+            <input
+              type="range"
+              min={40}
+              max={180}
+              step={1}
+              value={config.rhythm.bpm}
+              aria-label="Tempo in beats per minute"
+              onChange={(e) => updateConfig({ rhythm: { ...config.rhythm, bpm: Number(e.target.value) } })}
+              className="w-full max-w-md accent-amber-500 cursor-pointer"
+            />
+          </SettingsSection>
+          <SettingsSection title="Notes per beat">
+            <div className="flex flex-wrap items-center gap-2">
+              {RHYTHM_GRIDS.map((sub) => (
+                <Chip
+                  key={sub}
+                  selected={config.rhythm.subdivision === sub}
+                  onClick={() => updateConfig({ rhythm: { ...config.rhythm, subdivision: sub } })}
+                >
+                  {capitalize(SUBDIVISION_NAMES[sub])}
+                </Chip>
+              ))}
+            </div>
+          </SettingsSection>
+          <SettingsSection title="Click volume">
+            <input
+              type="range"
+              min={0}
+              max={1}
+              step={0.05}
+              value={clickVolume}
+              aria-label="Click volume"
+              onChange={(e) => {
+                setClickVolumeState(Number(e.target.value));
+                setClickVolume(Number(e.target.value));
+              }}
+              className="w-full max-w-xs accent-amber-500 cursor-pointer"
+            />
+          </SettingsSection>
+        </>
+      )}
+
+      {usesShapes && (
+        <SettingsSection
+          title={isRhythmDrill ? 'Positions' : 'Shapes'}
+          hint="picked at random from these"
+        >
           <div className="flex flex-wrap gap-2">
             {ALL_CAGED_SHAPES.map((shape) => (
               <Chip
@@ -322,7 +392,7 @@ export const DrillOptions: FC = () => {
         </SettingsSection>
       )}
 
-      {!isCagedDrill && (
+      {!usesShapes && (
         <SettingsSection title="Strings" hint="picked at random from these">
           <div className="flex flex-wrap gap-2">
             {STRING_SETS.map((set) => (
@@ -367,26 +437,28 @@ export const DrillOptions: FC = () => {
         )}
       </SettingsSection>
 
-      <SettingsSection title="Sound">
-        <label className="flex items-center justify-between gap-3 cursor-pointer">
-          <span className="text-xs text-slate-300">Drone on the key’s root note</span>
-          <input
-            type="checkbox"
-            checked={config.playDrone}
-            onChange={(e) => updateConfig({ playDrone: e.target.checked })}
-            className="accent-sky-500 w-4 h-4 cursor-pointer"
-          />
-        </label>
-        <label className="flex items-center justify-between gap-3 cursor-pointer">
-          <span className="text-xs text-slate-300">Play the solution when it’s shown</span>
-          <input
-            type="checkbox"
-            checked={config.playSolutionAudioOnReveal}
-            onChange={(e) => updateConfig({ playSolutionAudioOnReveal: e.target.checked })}
-            className="accent-sky-500 w-4 h-4 cursor-pointer"
-          />
-        </label>
-      </SettingsSection>
+      {!isRhythmDrill && (
+        <SettingsSection title="Sound">
+          <label className="flex items-center justify-between gap-3 cursor-pointer">
+            <span className="text-xs text-slate-300">Drone on the key’s root note</span>
+            <input
+              type="checkbox"
+              checked={config.playDrone}
+              onChange={(e) => updateConfig({ playDrone: e.target.checked })}
+              className="accent-sky-500 w-4 h-4 cursor-pointer"
+            />
+          </label>
+          <label className="flex items-center justify-between gap-3 cursor-pointer">
+            <span className="text-xs text-slate-300">Play the solution when it’s shown</span>
+            <input
+              type="checkbox"
+              checked={config.playSolutionAudioOnReveal}
+              onChange={(e) => updateConfig({ playSolutionAudioOnReveal: e.target.checked })}
+              className="accent-sky-500 w-4 h-4 cursor-pointer"
+            />
+          </label>
+        </SettingsSection>
+      )}
     </div>
   );
 };
@@ -398,12 +470,25 @@ export function summarizeDrillOptions(config: DrillConfig): string[] {
     : 'self-graded';
   const drone = config.playDrone ? 'drone on' : 'drone off';
 
+  const allShapes =
+    config.cagedShapes.length === ALL_CAGED_SHAPES.length || config.cagedShapes.length === 0;
+
   if (config.exerciseType === 'CAGED_CHORD_SHAPE') {
-    const shapes =
-      config.cagedShapes.length === ALL_CAGED_SHAPES.length || config.cagedShapes.length === 0
-        ? 'all 5 shapes'
-        : `${config.cagedShapes.join(', ')} ${config.cagedShapes.length === 1 ? 'shape' : 'shapes'}`;
+    const shapes = allShapes
+      ? 'all 5 shapes'
+      : `${config.cagedShapes.join(', ')} ${config.cagedShapes.length === 1 ? 'shape' : 'shapes'}`;
     return [shapes, after, drone];
+  }
+
+  if (config.exerciseType === 'SCALE_RHYTHM') {
+    const positions = allShapes
+      ? 'all 5 positions'
+      : `${config.cagedShapes.join(', ')} ${config.cagedShapes.length === 1 ? 'position' : 'positions'}`;
+    return [
+      `${SUBDIVISION_NAMES[config.rhythm.subdivision]} at ${config.rhythm.bpm} bpm`,
+      positions,
+      after,
+    ];
   }
 
   const strings = config.stringSets.map((s) => formatStringSet(s)).join(', ');

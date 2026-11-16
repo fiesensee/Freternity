@@ -1,13 +1,31 @@
 import type { FC } from 'react';
 import { ComputedFretNode } from '../../core/models';
 
+/**
+ * How a node compares with the solution. The rhythm drill also grades the timing of a right
+ * note: CORRECT = within ±25 ms, CORRECT_LOOSE = within ±50 ms, CORRECT_OFF = further off.
+ */
+export type ComparisonStatus =
+  | 'CORRECT'
+  | 'CORRECT_LOOSE'
+  | 'CORRECT_OFF'
+  | 'WRONG'
+  | 'MISSED'
+  | 'NONE';
+
+const CORRECT_STYLE = {
+  CORRECT: { fill: '#059669', stroke: '#6ee7b7', text: '#ffffff', badge: '#10b981' }, // emerald
+  CORRECT_LOOSE: { fill: '#eab308', stroke: '#fef08a', text: '#1c1917', badge: '#ca8a04' }, // yellow
+  CORRECT_OFF: { fill: '#ea580c', stroke: '#fdba74', text: '#ffffff', badge: '#c2410c' }, // orange
+} as const;
+
 export interface FretNodeProps {
   node: ComputedFretNode;
   cx: number;
   cy: number;
   radius?: number;
   isUserSelected?: boolean;
-  comparisonStatus?: 'CORRECT' | 'WRONG' | 'MISSED' | 'NONE';
+  comparisonStatus?: ComparisonStatus;
   isClickablePracticeTarget?: boolean;
   onClick?: (node: ComputedFretNode) => void;
 }
@@ -23,7 +41,13 @@ export const FretNode: FC<FretNodeProps> = ({
   onClick,
 }) => {
   const isHidden = node.visualPriority === 'HIDDEN';
-  const isCorrect = comparisonStatus === 'CORRECT';
+  const correctStyle =
+    comparisonStatus === 'CORRECT' ||
+    comparisonStatus === 'CORRECT_LOOSE' ||
+    comparisonStatus === 'CORRECT_OFF'
+      ? CORRECT_STYLE[comparisonStatus]
+      : null;
+  const isCorrect = correctStyle !== null;
   const isWrong = comparisonStatus === 'WRONG';
   const isMissed = comparisonStatus === 'MISSED';
 
@@ -69,10 +93,10 @@ export const FretNode: FC<FretNodeProps> = ({
     opacity = 1.0;
   } else if (isCorrect) {
     // User picked this note, and it IS in the solution
-    fillColor = '#059669'; // emerald-600
-    strokeColor = '#6ee7b7'; // emerald-300
+    fillColor = correctStyle!.fill;
+    strokeColor = correctStyle!.stroke;
     strokeWidth = 3;
-    textColor = '#ffffff';
+    textColor = correctStyle!.text;
     labelText = node.displayLabel || '✓';
     opacity = 1.0;
   } else if (isMissed) {
@@ -161,7 +185,7 @@ export const FretNode: FC<FretNodeProps> = ({
           cy={cy}
           r={radius + 5}
           fill="none"
-          stroke={isCorrect ? '#34d399' : isTargetRoot ? '#f43f5e' : '#38bdf8'}
+          stroke={correctStyle ? correctStyle.stroke : isTargetRoot ? '#f43f5e' : '#38bdf8'}
           strokeWidth={2}
           strokeDasharray="4 2"
           className="animate-pulse"
@@ -199,7 +223,7 @@ export const FretNode: FC<FretNodeProps> = ({
       {/* Small Checkmark Badge for Correct Pick */}
       {isCorrect && (
         <g transform={`translate(${cx + radius * 0.5}, ${cy - radius * 0.5})`}>
-          <circle cx={0} cy={0} r={5.5} fill="#10b981" stroke="#ffffff" strokeWidth={1} />
+          <circle cx={0} cy={0} r={5.5} fill={correctStyle!.badge} stroke="#ffffff" strokeWidth={1} />
           <text
             x={0}
             y={0.5}

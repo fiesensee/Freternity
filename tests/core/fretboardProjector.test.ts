@@ -276,4 +276,20 @@ describe('fretboardProjector', () => {
     // Diminished chords have no CAGED shape
     expect(lit({ ...state, targetLayer: { ...state.targetLayer, chordId: 'dim' } })).toEqual([]);
   });
+
+  it('onlyPositions greys out every other note', () => {
+    const state: FretboardViewState = {
+      instrumentId: 'guitar_6_standard',
+      labelMode: 'NOTE_NAME',
+      scaleLayer: { enabled: true, rootPitchClass: 0, preferFlats: true, scaleId: 'ionian' },
+      targetLayer: { enabled: false, rootPitchClass: 0, chordId: 'maj' },
+      filterMask: {
+        activeStrings: [1, 2, 3, 4, 5, 6],
+        fretRange: { min: 0, max: 22 },
+        onlyPositions: [{ stringIndex: 5, fret: 3 }],
+      },
+    };
+    const lit = projectFretboard(state, GUITAR_6_STANDARD).flat().filter((n) => !n.isMaskedOut);
+    expect(lit.map((n) => n.position)).toEqual([{ stringIndex: 5, fret: 3 }]);
+  });
 });

@@ -2,6 +2,7 @@ import { DrillChallenge, DrillConfig, InstrumentConfig } from '../models';
 import { GUITAR_6_STANDARD } from '../constants';
 import { generateTriadInversionChallenge } from './triadInversionGenerator';
 import { generateCagedChordShapeChallenge } from './cagedChordShapeGenerator';
+import { generateScaleRhythmChallenge } from './scaleRhythmGenerator';
 
 /**
  * Re-rolls this often before giving up on avoiding a repeat. Only matters when the settings
@@ -11,9 +12,14 @@ import { generateCagedChordShapeChallenge } from './cagedChordShapeGenerator';
 const MAX_REPEAT_REROLLS = 50;
 
 function generateOnce(config: DrillConfig, instrument: InstrumentConfig): DrillChallenge {
-  return config.exerciseType === 'CAGED_CHORD_SHAPE'
-    ? generateCagedChordShapeChallenge(config, instrument)
-    : generateTriadInversionChallenge(config, instrument);
+  switch (config.exerciseType) {
+    case 'CAGED_CHORD_SHAPE':
+      return generateCagedChordShapeChallenge(config, instrument);
+    case 'SCALE_RHYTHM':
+      return generateScaleRhythmChallenge(config, instrument);
+    default:
+      return generateTriadInversionChallenge(config, instrument);
+  }
 }
 
 /**

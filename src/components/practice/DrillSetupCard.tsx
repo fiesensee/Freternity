@@ -1,6 +1,8 @@
 import { useState, type FC } from 'react';
 import { usePracticeStore } from '../../store/usePracticeStore';
-import { GuitarInputPanel } from './GuitarInputPanel';
+import { GuitarInputPanel, InputDeviceControls } from './GuitarInputPanel';
+import { guitarPitchInput } from '../../adapters/guitarPitchInput';
+import { getRhythmLatency } from '../../adapters/rhythm/rhythmPrefs';
 import {
   DrillOptions,
   DrillTypePicker,
@@ -8,6 +10,7 @@ import {
   SettingsSection,
   ThinkTimePicker,
   describeKey,
+  hasThinkTime,
   summarizeDrillOptions,
 } from './DrillSettings';
 
@@ -25,7 +28,37 @@ function readCustomizeOpen(): boolean {
  * Quick start: the three choices that matter (drill, key, input) and a Start button.
  * Everything else has sensible defaults and sits behind a one-line summary.
  */
-export const DrillSetupCard: FC = () => {
+/** Scale-in-time listens to the guitar itself: which input, and is its timing calibrated? */
+const RhythmInputNotice: FC<{ onOpenRhythmLab?: () => void }> = ({ onOpenRhythmLab }) => {
+  const latency = getRhythmLatency(guitarPitchInput.getDeviceId());
+  return (
+    <section className="flex flex-col gap-2">
+      <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-300">Your guitar</h3>
+      <p className="text-[11px] text-slate-400 leading-relaxed">
+        Listens through your mic or interface. Pick single notes; headphones keep the click out of the
+        mic.
+      </p>
+      <InputDeviceControls active compact />
+      <p className="text-[11px] text-slate-400">
+        {latency !== null ? (
+          <>
+            Timing calibrated for this input: <strong className="text-slate-200 font-mono">{latency} ms</strong>{' '}
+            is subtracted.{' '}
+          </>
+        ) : (
+          <span className="text-amber-300/90">This input isn’t calibrated yet, so timings include your system’s delay. </span>
+        )}
+        {onOpenRhythmLab && (
+          <button onClick={onOpenRhythmLab} className="text-sky-400 hover:text-sky-300 underline cursor-pointer">
+            {latency !== null ? 'Recalibrate' : 'Calibrate'} in the Rhythm Lab
+          </button>
+        )}
+      </p>
+    </section>
+  );
+};
+
+export const DrillSetupCard: FC<{ onOpenRhythmLab?: () => void }> = ({ onOpenRhythmLab }) => {
   const config = usePracticeStore((s) => s.config);
   const startPractice = usePracticeStore((s) => s.startPractice);
   const [isCustomizeOpen, setIsCustomizeOpen] = useState(readCustomizeOpen);
@@ -45,9 +78,9 @@ export const DrillSetupCard: FC = () => {
   return (
     <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-2xl max-w-3xl mx-auto w-full flex flex-col gap-6">
       <div>
-        <h2 className="text-xl sm:text-2xl font-black text-white">Chord Practice</h2>
+        <h2 className="text-xl sm:text-2xl font-black text-white">Practice</h2>
         <p className="text-sm text-slate-400 mt-1">
-          You get a chord, you find it on the neck. Pick a drill and a key and go.
+          Find chords on the neck, or play scales in time. Pick a drill and a key and go.
         </p>
       </div>
 
@@ -59,11 +92,16 @@ export const DrillSetupCard: FC = () => {
         <KeyPicker />
       </SettingsSection>
 
-      <SettingsSection title="Time to find it">
-        <ThinkTimePicker />
-      </SettingsSection>
-
-      <GuitarInputPanel />
+      {hasThinkTime(config.exerciseType) ? (
+        <>
+          <SettingsSection title="Time to find it">
+            <ThinkTimePicker />
+          </SettingsSection>
+          <GuitarInputPanel />
+        </>
+      ) : (
+        <RhythmInputNotice onOpenRhythmLab={onOpenRhythmLab} />
+      )}
 
       <button
         onClick={() => startPractice()}

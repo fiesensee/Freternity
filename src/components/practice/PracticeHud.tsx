@@ -4,12 +4,15 @@ import { GuitarInputPanel, midiToLabel } from './GuitarInputPanel';
 import { positionToMidi } from '../../core/drills/heardNoteMapper';
 import { GUITAR_6_STANDARD } from '../../core/constants';
 import { toDisplayStringNumber } from '../../core/stringNumbering';
+import { RhythmTakePanel } from './RhythmTakePanel';
+import { getClickVolume } from '../../adapters/rhythm/rhythmPrefs';
 
 export interface PracticeHudProps {
   onOpenSettings?: () => void;
+  onOpenRhythmLab?: () => void;
 }
 
-export const PracticeHud: FC<PracticeHudProps> = ({ onOpenSettings }) => {
+export const PracticeHud: FC<PracticeHudProps> = ({ onOpenSettings, onOpenRhythmLab }) => {
   const engine = usePracticeStore((s) => s.engine);
   const config = usePracticeStore((s) => s.config);
   const stopPractice = usePracticeStore((s) => s.stopPractice);
@@ -28,6 +31,8 @@ export const PracticeHud: FC<PracticeHudProps> = ({ onOpenSettings }) => {
   const isListening = inputMode === 'GUITAR' && guitarInputStatus === 'LISTENING';
 
   const { phase, currentChallenge, timeRemainingMs, totalDurationMs, stats } = engine;
+  const isRhythm = !!currentChallenge?.rhythm;
+  const rhythmTakeRunning = usePracticeStore((s) => s.rhythmTake?.status === 'RUNNING');
 
   // Keyboard controls for hands-free practice (Space, R, Escape, P)
   useEffect(() => {
@@ -85,7 +90,10 @@ export const PracticeHud: FC<PracticeHudProps> = ({ onOpenSettings }) => {
     (liveEvaluation?.correctPositions ?? []).map((p) => positionToMidi(p, GUITAR_6_STANDARD))
   );
 
-  const showTimer = phase === 'PROMPTING' || (phase === 'REVEALING' && config.autoAdvance);
+  // A rhythm take's length is only known once the click starts
+  const showTimer =
+    (phase === 'PROMPTING' && (!isRhythm || rhythmTakeRunning)) ||
+    (phase === 'REVEALING' && config.autoAdvance);
   const progressRatio =
     totalDurationMs > 0 ? Math.max(0, timeRemainingMs / totalDurationMs) : 0;
   const secondsLeft = (timeRemainingMs / 1000).toFixed(1);
@@ -141,7 +149,7 @@ export const PracticeHud: FC<PracticeHudProps> = ({ onOpenSettings }) => {
             <span className="text-rose-400 font-bold">✕ {stats.missed}</span>
             {stats.total > 0 && <span className="text-slate-400">{accuracyPercent}%</span>}
           </span>
-          <HudMenu onOpenSettings={onOpenSettings} />
+          <HudMenu onOpenSettings={onOpenSettings} isRhythm={isRhythm} />
         </div>
       </div>
 
@@ -170,8 +178,11 @@ export const PracticeHud: FC<PracticeHudProps> = ({ onOpenSettings }) => {
           {currentChallenge.subPrompt}
         </p>
 
+        {isRhythm && <RhythmTakePanel onOpenRhythmLab={onOpenRhythmLab} />}
+
         {/* Guitar input, all inversions: shapes must be played in order up the neck */}
-        {phase === 'PROMPTING' &&
+        {!isRhythm &&
+          phase === 'PROMPTING' &&
           isListening &&
           config.exerciseType === 'TRIAD_ALL_INVERSIONS' && (
             <div className="mt-3 flex flex-wrap items-center justify-center gap-2 text-xs font-mono">
@@ -199,7 +210,7 @@ export const PracticeHud: FC<PracticeHudProps> = ({ onOpenSettings }) => {
           )}
 
         {/* Interactive Selection Feedback during Prompting */}
-        {phase === 'PROMPTING' && (
+        {phase === 'PROMPTING' && !isRhythm && (
           <div className="mt-3 flex items-center justify-center gap-2 text-xs">
             {isListening ? (
               <span className="text-sky-400 font-mono font-medium flex items-center gap-1.5">
@@ -300,7 +311,7 @@ export const PracticeHud: FC<PracticeHudProps> = ({ onOpenSettings }) => {
             )}
 
             {/* Comparison Result Feedback */}
-            {evaluation && (
+            {evaluation && !isRhythm && (
               <div className="flex flex-col items-center justify-center gap-2">
                 {evaluation.isMatch ? (
                   <span className="px-3.5 py-1 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 flex items-center gap-1.5 shadow-sm">
@@ -381,7 +392,7 @@ export const PracticeHud: FC<PracticeHudProps> = ({ onOpenSettings }) => {
               onClick={revealNow}
               className="px-5 py-2 rounded-xl text-xs sm:text-sm font-bold bg-rose-600 hover:bg-rose-500 text-white shadow-lg shadow-rose-600/30 transition cursor-pointer flex items-center gap-2"
             >
-              <span>Reveal Solution</span>
+              <span>{isRhythm ? 'Finish Take' : 'Reveal Solution'}</span>
               <kbd className="px-1.5 py-0.5 rounded bg-rose-700 text-rose-100 text-[11px] font-mono">
                 Space
               </kbd>
@@ -431,7 +442,12 @@ export const PracticeHud: FC<PracticeHudProps> = ({ onOpenSettings }) => {
 };
 
 /** Secondary drill controls, kept out of the way of the prompt. */
-const HudMenu: FC<{ onOpenSettings?: () => void }> = ({ onOpenSettings }) => {
+const HudMenu: FC<{ onOpenSettings?: () => void; isRhythm: boolean }> = ({
+  onOpenSettings,
+  isRhythm,
+}) => {
+  const setRhythmClickVolume = usePracticeStore((s) => s.setRhythmClickVolume);
+  const [clickVolume, setClickVolumeState] = useState(getClickVolume);
   const config = usePracticeStore((s) => s.config);
   const inputMode = usePracticeStore((s) => s.inputMode);
   const toggleDroneAudio = usePracticeStore((s) => s.toggleDroneAudio);
@@ -496,29 +512,51 @@ const HudMenu: FC<{ onOpenSettings?: () => void }> = ({ onOpenSettings }) => {
 
       {isOpen && (
         <div className="absolute right-0 top-full mt-2 z-30 w-80 max-w-[calc(100vw-2rem)] bg-slate-900 border border-slate-700 rounded-xl shadow-2xl p-3 flex flex-col gap-3">
-          <div>
-            <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">Sound</div>
-            {switchRow(
-              'Drone',
-              inputMode === 'GUITAR'
-                ? 'Muted while listening to your guitar'
-                : 'A soft pad on the key’s root note',
-              config.playDrone,
-              toggleDroneAudio,
-              inputMode === 'GUITAR'
-            )}
-            {switchRow(
-              'Play the solution',
-              'Plays the chord when the solution is shown',
-              config.playSolutionAudioOnReveal,
-              toggleSolutionAudio
-            )}
-          </div>
+          {isRhythm ? (
+            <label className="flex items-center justify-between gap-3 py-1.5">
+              <span className="text-xs text-slate-200 font-medium">Click volume</span>
+              <input
+                type="range"
+                min={0}
+                max={1}
+                step={0.05}
+                value={clickVolume}
+                aria-label="Click volume"
+                onChange={(e) => {
+                  const v = Number(e.target.value);
+                  setClickVolumeState(v);
+                  setRhythmClickVolume(v);
+                }}
+                className="w-32 accent-amber-500 cursor-pointer"
+              />
+            </label>
+          ) : (
+            <>
+              <div>
+                <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">Sound</div>
+                {switchRow(
+                  'Drone',
+                  inputMode === 'GUITAR'
+                    ? 'Muted while listening to your guitar'
+                    : 'A soft pad on the key’s root note',
+                  config.playDrone,
+                  toggleDroneAudio,
+                  inputMode === 'GUITAR'
+                )}
+                {switchRow(
+                  'Play the solution',
+                  'Plays the chord when the solution is shown',
+                  config.playSolutionAudioOnReveal,
+                  toggleSolutionAudio
+                )}
+              </div>
 
-          <div className="border-t border-slate-800 pt-3">
-            <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-2">Answer with</div>
-            <GuitarInputPanel variant="toggle" />
-          </div>
+              <div className="border-t border-slate-800 pt-3">
+                <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-2">Answer with</div>
+                <GuitarInputPanel variant="toggle" />
+              </div>
+            </>
+          )}
 
           {onOpenSettings && (
             <button

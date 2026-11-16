@@ -2,7 +2,9 @@
  * Timing math for rhythm practice. All times are in seconds on one shared audio clock.
  */
 
-export type Subdivision = 1 | 2 | 3 | 4; // quarters, eighths, triplets, sixteenths
+import type { RhythmSubdivision } from '../models';
+
+export type Subdivision = RhythmSubdivision; // quarters, eighths, triplets, sixteenths
 
 export interface RhythmGrid {
   /** Audio-clock time of the first beat after the count-in */

@@ -93,6 +93,10 @@ export function projectFretboard(
     }
   }
 
+  const onlyPositions = state.filterMask.onlyPositions
+    ? new Set(state.filterMask.onlyPositions.map((p) => `${p.stringIndex}-${p.fret}`))
+    : null;
+
   const matrix: ComputedFretNode[][] = [];
 
   for (let stringIdx = 0; stringIdx < instrument.stringCount; stringIdx++) {
@@ -189,7 +193,8 @@ export function projectFretboard(
       const isFretInRange =
         fret >= state.filterMask.fretRange.min &&
         fret <= state.filterMask.fretRange.max;
-      const isMaskedOut = !isStringActive || !isFretInRange;
+      const isOutsideFocus = onlyPositions !== null && !onlyPositions.has(`${stringNumber}-${fret}`);
+      const isMaskedOut = !isStringActive || !isFretInRange || isOutsideFocus;
 
       // Visual Priority
       let visualPriority: ComputedFretNode['visualPriority'];

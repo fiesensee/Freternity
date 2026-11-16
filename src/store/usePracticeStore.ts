@@ -28,6 +28,10 @@ import {
 } from '../core/drills/heardNoteMapper';
 import { getAscendingInversionSequence } from '../core/triadVoicings';
 import { guitarPitchInput } from '../adapters/guitarPitchInput';
+import { RhythmSession } from '../adapters/rhythm/rhythmSession';
+import { getClickVolume, getRhythmLatency, setClickVolume } from '../adapters/rhythm/rhythmPrefs';
+import { RhythmGrid, TimingGrade, gradeOffset, gridInterval } from '../core/rhythm/rhythmMath';
+import { PlayedNote, TakeScore, scoreTake, takeDurationMs } from '../core/rhythm/takeScoring';
 
 export type PracticeInputMode = 'POINTER' | 'GUITAR';
 export type GuitarInputStatus = 'OFF' | 'STARTING' | 'LISTENING' | 'ERROR';
@@ -42,6 +46,102 @@ export interface PracticeEvaluation {
   missedPositions: readonly FretPosition[];
   foundInversions?: readonly TriadInversion[];
   missingInversions?: readonly TriadInversion[];
+  /** Scale-in-time drill: the full score of the take */
+  rhythmScore?: TakeScore;
+  /**
+   * Scale-in-time drill: timing of each right position (`string-fret`). A position played
+   * on the way up and down shows the worse of the two.
+   */
+  timingGrades?: Readonly<Record<string, TimingGrade>>;
+}
+
+export interface RhythmTakeState {
+  status: 'OPENING_MIC' | 'RUNNING' | 'ERROR';
+  grid: RhythmGrid | null;
+  /** Latency correction used for this take (0 = input not calibrated) */
+  latencyMs: number;
+  calibrated: boolean;
+  error?: string;
+}
+
+/** Results of a rhythm take stay up at least this long, even with a short reveal time */
+const RHYTHM_MIN_REVEAL_MS = 8000;
+/** Placeholder prompt time until the take's real length is known (mic permission etc.) */
+const RHYTHM_WAITING_MS = 10 * 60 * 1000;
+const RHYTHM_LEAD_IN_MS = 150;
+
+/** One rhythm session (mic + metronome) for the whole drill, reopened after a stop */
+const rhythmSession = new RhythmSession();
+let unsubscribeRhythm: (() => void) | null = null;
+let rhythmPlucks: PlayedNote[] = [];
+
+/** Audio-clock time of the rhythm drill, for visuals that follow the click (beat lights) */
+export const getRhythmClockNow = () => rhythmSession.now();
+
+const isRhythmChallenge = (c: DrillChallenge | null | undefined): boolean => !!c?.rhythm;
+
+/** Slot of the highest note, where the scale turns around and heads back down */
+export const rhythmTurnaroundSlot = (challenge: DrillChallenge): number =>
+  Math.floor((challenge.rhythm!.expected.length - 1) / 2);
+
+/** Where on the neck a wrongly played pitch most likely was: inside the box, near the expected string */
+function locateInWindow(
+  midi: MidiNote,
+  window: { min: number; max: number },
+  nearString: number
+): FretPosition | null {
+  const options = GUITAR_6_STANDARD.tuningMidi
+    .map((open, i) => ({ stringIndex: i + 1, fret: midi - open }))
+    .filter((p) => p.fret >= window.min && p.fret <= window.max);
+  if (options.length === 0) return null;
+  return options.reduce((best, p) =>
+    Math.abs(p.stringIndex - nearString) < Math.abs(best.stringIndex - nearString) ? p : best
+  );
+}
+
+/** Turns a take score into the fretboard's right / wrong / missed markings. */
+export function rhythmScoreToEvaluation(
+  score: TakeScore,
+  challenge: DrillChallenge,
+  final: boolean,
+  /** Only mark notes from this slot on (the score itself always covers the whole take) */
+  fromSlot = 0
+): PracticeEvaluation {
+  const expected = challenge.rhythm!.expected;
+  const window = challenge.promptBoardState.filterMask.fretRange;
+  const key = (p: FretPosition) => `${p.stringIndex}-${p.fret}`;
+  const correct = new Map<string, FretPosition>();
+  const wrong = new Map<string, FretPosition>();
+  const missed = new Map<string, FretPosition>();
+  const timingGrades: Record<string, TimingGrade> = {};
+  const severity: Record<TimingGrade, number> = { tight: 0, ok: 1, off: 2 };
+
+  score.outcomes.forEach((o, i) => {
+    const e = expected[i];
+    if (e.slot < fromSlot) return;
+    const pos = { stringIndex: e.stringIndex, fret: e.fret };
+    if (o.status === 'RIGHT') {
+      correct.set(key(pos), pos);
+      const grade = gradeOffset(o.offsetMs);
+      const earlier = timingGrades[key(pos)];
+      if (!earlier || severity[grade] > severity[earlier]) timingGrades[key(pos)] = grade;
+    }
+    else if (o.status === 'WRONG_NOTE' && o.playedMidi !== null) {
+      const at = locateInWindow(o.playedMidi, window, e.stringIndex);
+      if (at) wrong.set(key(at), at);
+    } else if (o.status === 'MISSED' && final) missed.set(key(pos), pos);
+  });
+  // The scale passes most positions twice (up and down): one good pass shows as right
+  for (const k of correct.keys()) missed.delete(k);
+
+  return {
+    isMatch: final && score.passed,
+    correctPositions: [...correct.values()],
+    wrongPositions: [...wrong.values()].filter((p) => !correct.has(key(p))),
+    missedPositions: [...missed.values()],
+    rhythmScore: score,
+    timingGrades,
+  };
 }
 
 export function evaluateVoicingSelection(
@@ -157,6 +257,7 @@ export const DEFAULT_DRILL_CONFIG: DrillConfig = {
   stringSets: [[1, 2, 3]],
   inversions: ['ROOT', 'FIRST', 'SECOND'],
   cagedShapes: ALL_CAGED_SHAPES,
+  rhythm: { bpm: 70, subdivision: 2 },
   fretZone: { min: 0, max: 22 },
   promptDurationMs: 45000,
   revealDurationMs: 4000,
@@ -180,6 +281,10 @@ export interface PracticeStore {
   liveEvaluation: PracticeEvaluation | null;
   /** All-inversions drill with guitar input: how many shapes (nut → 12th fret) are done */
   inversionStep: number;
+  /** Scale-in-time drill: the take in progress */
+  rhythmTake: RhythmTakeState | null;
+  /** Scale-in-time drill: index of the note due now / next */
+  rhythmCursor: number;
 
   // Actions
   startPractice: (customConfig?: Partial<DrillConfig>) => void;
@@ -194,6 +299,8 @@ export interface PracticeStore {
   toggleUserSelection: (position: FretPosition) => void;
   clearUserSelection: () => void;
   setInputMode: (mode: PracticeInputMode) => Promise<void>;
+  /** Scale-in-time drill: change the click volume (also while a take runs) */
+  setRhythmClickVolume: (volume: number) => void;
   registerPlayedNote: (midi: MidiNote) => void;
 
   // View accessor for fretboard renderer
@@ -213,16 +320,134 @@ export const usePracticeStore = create<PracticeStore>((set, get) => {
 
   /** Drone would be picked up by the mic (it sits on the root), so it stays off while listening. */
   const startDroneForPrompt = () => {
-    const { config, inputMode } = get();
+    const { config, inputMode, engine } = get();
+    if (isRhythmChallenge(engine.currentChallenge)) return; // would bleed into the mic
     if (config.playDrone && inputMode !== 'GUITAR') {
       audioSynthAdapter.startDrone(config.scaleContext.rootPitchClass, 0.22);
     }
   };
 
   const onNewPrompt = () => {
+    const challenge = get().engine.currentChallenge;
+    if (challenge && isRhythmChallenge(challenge)) {
+      void beginRhythmTake(challenge);
+      return;
+    }
+    // Switched away from the rhythm drill mid-session: release its mic
+    if (rhythmSession.isOpen) closeRhythmSession();
     startDroneForPrompt();
     if (get().inputMode === 'GUITAR') {
       guitarPitchInput.resetTracking(PROMPT_START_DEAF_MS);
+    }
+  };
+
+  const closeRhythmSession = () => {
+    unsubscribeRhythm?.();
+    unsubscribeRhythm = null;
+    rhythmSession.close();
+    rhythmPlucks = [];
+  };
+
+  /**
+   * Opens the mic if needed, then starts the click. The take's countdown is set only now,
+   * so a slow permission prompt doesn't eat into it.
+   */
+  const beginRhythmTake = async (challenge: DrillChallenge) => {
+    const spec = challenge.rhythm!;
+    const deviceId = guitarPitchInput.getDeviceId();
+    const calibratedLatency = getRhythmLatency(deviceId);
+    rhythmPlucks = [];
+    set({
+      rhythmTake: {
+        status: 'OPENING_MIC',
+        grid: null,
+        latencyMs: calibratedLatency ?? 0,
+        calibrated: calibratedLatency !== null,
+      },
+      rhythmCursor: 0,
+      liveEvaluation: null,
+    });
+
+    try {
+      await rhythmSession.open();
+    } catch (err) {
+      const message =
+        err instanceof DOMException && err.name === 'NotAllowedError'
+          ? 'Microphone access was blocked. Allow it in your browser’s site settings, then resume.'
+          : err instanceof Error
+          ? err.message
+          : 'Could not open the audio input.';
+      const { engine } = get();
+      set({
+        rhythmTake: { ...get().rhythmTake!, status: 'ERROR', error: message },
+        previousPhase: 'PROMPTING',
+        engine: pauseDrill(engine),
+      });
+      return;
+    }
+
+    // The drill may have moved on (or stopped) while the permission prompt was open
+    const { engine } = get();
+    if (engine.currentChallenge?.id !== challenge.id || engine.phase !== 'PROMPTING') return;
+
+    rhythmSession.setClickVolume(getClickVolume());
+    rhythmSession.setRequirePitch(true);
+    if (!unsubscribeRhythm) {
+      unsubscribeRhythm = rhythmSession.onEvent((e) => {
+        if (e.type === 'onset') registerRhythmPluck({ time: e.time, midi: e.midiNote });
+      });
+    }
+
+    const grid = rhythmSession.startMetronome({
+      bpm: spec.bpm,
+      subdivision: spec.subdivision,
+      beatsPerBar: spec.countInBeats,
+      countInBars: 1,
+      clickSubdivisions: false,
+    });
+    const duration = takeDurationMs(spec, spec.expected.length, spec.countInBeats) + RHYTHM_LEAD_IN_MS;
+    set({
+      rhythmTake: { ...get().rhythmTake!, status: 'RUNNING', grid },
+      engine: { ...get().engine, timeRemainingMs: duration, totalDurationMs: duration },
+    });
+  };
+
+  const registerRhythmPluck = (pluck: PlayedNote) => {
+    const { engine, rhythmTake } = get();
+    const challenge = engine.currentChallenge;
+    if (engine.phase !== 'PROMPTING' || !challenge?.rhythm || !rhythmTake?.grid) return;
+    rhythmPlucks = [...rhythmPlucks, pluck];
+    refreshLiveRhythm();
+  };
+
+  /**
+   * Live marks on the fretboard. Once the top note is reached they start over, so the way
+   * back down shows only how the descending notes go (the up pass would otherwise leave
+   * every position green).
+   */
+  const refreshLiveRhythm = () => {
+    const { engine, rhythmTake, rhythmCursor } = get();
+    const challenge = engine.currentChallenge;
+    if (!challenge?.rhythm || !rhythmTake?.grid) return;
+    const score = scoreTake(challenge.rhythm.expected, rhythmPlucks, rhythmTake.grid, rhythmTake.latencyMs);
+    const turnaround = rhythmTurnaroundSlot(challenge);
+    const fromSlot = rhythmCursor >= turnaround ? turnaround : 0;
+    set({ liveEvaluation: rhythmScoreToEvaluation(score, challenge, false, fromSlot) });
+  };
+
+  /** Moves the "next note" marker along with the click (called from the timer loop). */
+  const updateRhythmCursor = () => {
+    const { engine, rhythmTake, rhythmCursor } = get();
+    const spec = engine.currentChallenge?.rhythm;
+    if (!spec || !rhythmTake?.grid || engine.phase !== 'PROMPTING') return;
+    const position = (rhythmSession.now() - rhythmTake.grid.startTime) / gridInterval(spec);
+    // Switch to the next note halfway between two slots
+    const cursor = Math.min(spec.expected.length - 1, Math.max(0, Math.ceil(position - 0.5)));
+    if (cursor === rhythmCursor) return;
+    set({ rhythmCursor: cursor });
+    // Reaching the top note clears the marks of the way up
+    if (engine.currentChallenge && cursor === rhythmTurnaroundSlot(engine.currentChallenge)) {
+      refreshLiveRhythm();
     }
   };
 
@@ -295,8 +520,26 @@ export const usePracticeStore = create<PracticeStore>((set, get) => {
   };
 
   const triggerRevealTransition = () => {
-    const { engine, config, userSelections } = get();
+    const { engine, config, userSelections, rhythmTake } = get();
     if (!engine.currentChallenge) return;
+
+    if (isRhythmChallenge(engine.currentChallenge)) {
+      rhythmSession.stopMetronome();
+      const challenge = engine.currentChallenge;
+      const evaluation = rhythmTake?.grid
+        ? rhythmScoreToEvaluation(
+            scoreTake(challenge.rhythm!.expected, rhythmPlucks, rhythmTake.grid, rhythmTake.latencyMs),
+            challenge,
+            true
+          )
+        : null;
+      set({
+        engine: transitionToReveal(engine, Math.max(config.revealDurationMs, RHYTHM_MIN_REVEAL_MS)),
+        previousPhase: 'REVEALING',
+        evaluation,
+      });
+      return;
+    }
 
     const evaluation = evaluateVoicingSelection(
       userSelections,
@@ -327,6 +570,7 @@ export const usePracticeStore = create<PracticeStore>((set, get) => {
       const { engine, config } = state;
 
       if (engine.phase === 'PAUSED' || engine.phase === 'IDLE') return;
+      updateRhythmCursor();
 
       const newRemaining = Math.max(0, engine.timeRemainingMs - tickIntervalMs);
 
@@ -359,6 +603,8 @@ export const usePracticeStore = create<PracticeStore>((set, get) => {
     heardNotes: [],
     liveEvaluation: null,
     inversionStep: 0,
+    rhythmTake: null,
+    rhythmCursor: 0,
 
     startPractice: (customConfig) => {
       clearTimer();
@@ -369,7 +615,10 @@ export const usePracticeStore = create<PracticeStore>((set, get) => {
         GUITAR_6_STANDARD,
         get().engine.currentChallenge
       );
-      const newEngine = startChallenge(firstChallenge, config.promptDurationMs);
+      const newEngine = startChallenge(
+        firstChallenge,
+        isRhythmChallenge(firstChallenge) ? RHYTHM_WAITING_MS : config.promptDurationMs
+      );
 
       set({
         config,
@@ -392,6 +641,7 @@ export const usePracticeStore = create<PracticeStore>((set, get) => {
     stopPractice: () => {
       clearTimer();
       audioSynthAdapter.stopDrone();
+      closeRhythmSession();
       wakeLockAdapter.release().catch(() => {});
       set({
         engine: INITIAL_DRILL_ENGINE_STATE,
@@ -400,19 +650,25 @@ export const usePracticeStore = create<PracticeStore>((set, get) => {
         liveEvaluation: null,
         inversionStep: 0,
         evaluation: null,
+        rhythmTake: null,
+        rhythmCursor: 0,
       });
     },
 
     togglePause: () => {
       const { engine, previousPhase } = get();
+      const rhythm = isRhythmChallenge(engine.currentChallenge);
       if (engine.phase === 'PAUSED') {
         set({ engine: resumeDrill(engine, previousPhase) });
         if (previousPhase === 'PROMPTING') {
-          startDroneForPrompt();
+          // A take can't continue mid-bar: start it over with a fresh count-in
+          if (rhythm) void beginRhythmTake(engine.currentChallenge!);
+          else startDroneForPrompt();
         }
       } else if (engine.phase === 'PROMPTING' || engine.phase === 'REVEALING') {
         if (engine.phase === 'PROMPTING') {
           audioSynthAdapter.stopDrone();
+          if (rhythm) rhythmSession.stopMetronome();
         }
         set({
           previousPhase: engine.phase,
@@ -451,7 +707,7 @@ export const usePracticeStore = create<PracticeStore>((set, get) => {
       const nextChallenge = generateChallenge(config, GUITAR_6_STANDARD, engine.currentChallenge);
       const newEngine = startChallenge(
         nextChallenge,
-        config.promptDurationMs,
+        isRhythmChallenge(nextChallenge) ? RHYTHM_WAITING_MS : config.promptDurationMs,
         updatedStats
       );
 
@@ -491,7 +747,7 @@ export const usePracticeStore = create<PracticeStore>((set, get) => {
 
     toggleUserSelection: (position) => {
       const { engine, userSelections, config } = get();
-      if (engine.phase !== 'PROMPTING') return;
+      if (engine.phase !== 'PROMPTING' || isRhythmChallenge(engine.currentChallenge)) return;
 
       // Check if position is already selected
       const isAlreadySelected = userSelections.some(
@@ -571,7 +827,8 @@ export const usePracticeStore = create<PracticeStore>((set, get) => {
     registerPlayedNote: (midi) => {
       const { engine, config, heardNotes } = get();
       const challenge = engine.currentChallenge;
-      if (engine.phase !== 'PROMPTING' || !challenge) return;
+      // The rhythm drill has its own, sample-accurate input
+      if (engine.phase !== 'PROMPTING' || !challenge || isRhythmChallenge(challenge)) return;
 
       if (config.exerciseType === 'TRIAD_ALL_INVERSIONS' && challenge.inversionVoicings) {
         registerSequentialInversionNote(midi, challenge);
@@ -604,6 +861,11 @@ export const usePracticeStore = create<PracticeStore>((set, get) => {
       if (evaluation?.isMatch) {
         triggerRevealTransition();
       }
+    },
+
+    setRhythmClickVolume: (volume) => {
+      rhythmSession.setClickVolume(volume);
+      setClickVolume(volume);
     },
 
     getCurrentBoardState: (fallbackState) => {

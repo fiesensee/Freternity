@@ -4,14 +4,23 @@ import { getActiveCagedChordShape } from '../../core/fretboardProjector';
 
 export type LegendContext =
   | { kind: 'explore'; viewState: FretboardViewState }
-  | { kind: 'prompt'; inputMode: 'POINTER' | 'GUITAR' }
+  | { kind: 'prompt'; inputMode: 'POINTER' | 'GUITAR'; rhythm?: boolean }
   | {
       kind: 'reveal';
       viewState: FretboardViewState;
       hasCorrect: boolean;
       hasWrong: boolean;
       hasMissed: boolean;
+      rhythm?: boolean;
     };
+
+/** Rhythm drill: right notes are coloured by how well they were timed */
+const timingItems = () => [
+  <Item key="t25" dot={<Dot className="bg-emerald-600 border border-emerald-300">✓</Dot>} label="Within ±25 ms" />,
+  <Item key="t50" dot={<Dot className="bg-yellow-500 border border-yellow-200"><span className="text-stone-900">✓</span></Dot>} label="±50 ms" />,
+  <Item key="toff" dot={<Dot className="bg-orange-600 border border-orange-300">✓</Dot>} label="Further off" />,
+  <Item key="bad" dot={<Dot className="bg-rose-600 border border-rose-300">✕</Dot>} label="Wrong note" />,
+];
 
 const Dot: FC<{ className: string; children?: ReactNode }> = ({ className, children }) => (
   <span
@@ -91,13 +100,25 @@ export const FretboardLegend: FC<{ context: LegendContext }> = ({ context }) => 
       ...scaleItem(viewState),
     ];
   } else if (context.kind === 'prompt') {
-    items =
-      context.inputMode === 'GUITAR'
+    items = context.rhythm
+      ? [
+          ...timingItems(),
+          <Item key="sroot" dot={<Dot className="bg-rose-600 border border-rose-200" />} label="Scale root" />,
+        ]
+      : context.inputMode === 'GUITAR'
         ? [
             <Item key="ok" dot={<Dot className="bg-emerald-600 border border-emerald-300">✓</Dot>} label="Right note" />,
             <Item key="bad" dot={<Dot className="bg-rose-600 border border-rose-300">✕</Dot>} label="Wrong note" />,
           ]
         : [<Item key="pick" dot={<Dot className="bg-sky-600 border border-sky-300" />} label="Your pick" />];
+  } else if (context.rhythm) {
+    items = [
+      ...timingItems(),
+      ...(context.hasMissed
+        ? [<Item key="miss" dot={<Dot className="bg-rose-600 border-2 border-amber-400" />} label="Missed" />]
+        : []),
+      ...scaleItem(context.viewState),
+    ];
   } else {
     items = [
       ...(context.hasCorrect

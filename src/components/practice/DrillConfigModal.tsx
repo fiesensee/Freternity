@@ -6,6 +6,7 @@ import {
   KeyPicker,
   SettingsSection,
   ThinkTimePicker,
+  hasThinkTime,
 } from './DrillSettings';
 
 export interface DrillConfigModalProps {
@@ -17,6 +18,7 @@ export interface DrillConfigModalProps {
 /** In-drill settings. Same building blocks as the setup screen; changes apply immediately. */
 export const DrillConfigModal: FC<DrillConfigModalProps> = ({ isOpen, onClose, onStart }) => {
   const startPractice = usePracticeStore((s) => s.startPractice);
+  const exerciseType = usePracticeStore((s) => s.config.exerciseType);
 
   // Escape closes the dialog instead of exiting the drill
   useEffect(() => {
@@ -77,9 +79,11 @@ export const DrillConfigModal: FC<DrillConfigModalProps> = ({ isOpen, onClose, o
           <KeyPicker />
         </SettingsSection>
 
-        <SettingsSection title="Time to find it">
-          <ThinkTimePicker />
-        </SettingsSection>
+        {hasThinkTime(exerciseType) && (
+          <SettingsSection title="Time to find it">
+            <ThinkTimePicker />
+          </SettingsSection>
+        )}
 
         <DrillOptions />
 

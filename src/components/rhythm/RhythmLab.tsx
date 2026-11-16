@@ -11,6 +11,13 @@ import {
 } from '../../core/rhythm/rhythmMath';
 import { CHROMATIC_SHARPS, midiToOctave, midiToPitchClass } from '../../core/musicTheory';
 import { InputDeviceControls } from '../practice/GuitarInputPanel';
+import { guitarPitchInput } from '../../adapters/guitarPitchInput';
+import {
+  getClickVolume,
+  getRhythmLatency,
+  setClickVolume as saveClickVolume,
+  setRhythmLatency,
+} from '../../adapters/rhythm/rhythmPrefs';
 
 /**
  * Rhythm prototype: a metronome plus sample-accurate pluck timing, to find out how precisely
@@ -26,9 +33,6 @@ interface Hit {
 }
 type MidiOrNull = number | null;
 
-const LATENCY_KEY = 'freternity.rhythmLatencyMs';
-const CLICK_VOLUME_KEY = 'freternity.rhythmClickVolume';
-const DEFAULT_CLICK_VOLUME = 0.7;
 const MEASURE_HITS = 8;
 /** Most recent plucks shown in the dot plot */
 const PLOTTED_HITS = 64;
@@ -58,29 +62,10 @@ const MODES: readonly { id: LabMode; label: string; hint: string }[] = [
   },
 ];
 
-function readLatency(): number {
-  try {
-    return Number(localStorage.getItem(LATENCY_KEY) ?? 0) || 0;
-  } catch {
-    return 0;
-  }
-}
-function readClickVolume(): number {
-  try {
-    const stored = localStorage.getItem(CLICK_VOLUME_KEY);
-    return stored === null ? DEFAULT_CLICK_VOLUME : Math.min(1, Math.max(0, Number(stored) || 0));
-  } catch {
-    return DEFAULT_CLICK_VOLUME;
-  }
-}
-
-function writeLatency(ms: number): void {
-  try {
-    localStorage.setItem(LATENCY_KEY, String(ms));
-  } catch {
-    // per-viewer convenience only
-  }
-}
+/** Latency correction for the input currently selected (0 = not calibrated) */
+const currentLatency = () => getRhythmLatency(guitarPitchInput.getDeviceId()) ?? 0;
+const saveLatency = (ms: number) =>
+  setRhythmLatency(guitarPitchInput.getDeviceId(), ms === 0 ? null : ms);
 
 const gradeColor: Record<TimingGrade, string> = {
   tight: 'bg-emerald-400',
@@ -105,8 +90,8 @@ export const RhythmLab: FC = () => {
   const [bpm, setBpm] = useState(80);
   const [subdivision, setSubdivision] = useState<Subdivision>(2);
   const [clickSubdivisions, setClickSubdivisions] = useState(false);
-  const [latencyMs, setLatencyMs] = useState(readLatency);
-  const [clickVolume, setClickVolume] = useState(readClickVolume);
+  const [latencyMs, setLatencyMs] = useState(currentLatency);
+  const [clickVolume, setClickVolume] = useState(getClickVolume);
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hits, setHits] = useState<Hit[]>([]);
@@ -118,7 +103,6 @@ export const RhythmLab: FC = () => {
 
   // Settings that are fixed while measuring
   const effectiveSubdivision: Subdivision = mode === 'PLAY' ? subdivision : 1;
-  const effectiveLatency = mode === 'PLAY' ? latencyMs : 0;
 
   const stop = useCallback(() => {
     session.current?.close();
@@ -133,6 +117,10 @@ export const RhythmLab: FC = () => {
 
   const start = async () => {
     setError(null);
+    // Read fresh: the input may have changed since the last render
+    const deviceLatency = currentLatency();
+    setLatencyMs(deviceLatency);
+    const latencyForTake = mode === 'PLAY' ? deviceLatency : 0;
     setHits([]);
     setMeasurement(null);
     const s = new RhythmSession();
@@ -165,7 +153,7 @@ export const RhythmLab: FC = () => {
       }
       const g = grid.current;
       if (!g) return;
-      const hit = matchToGrid(e.time, g, effectiveLatency);
+      const hit = matchToGrid(e.time, g, latencyForTake);
       if (!hit) return; // during the count-in
       setHits((prev) => [...prev, { ...hit, midiNote: e.midiNote }]);
     });
@@ -205,23 +193,19 @@ export const RhythmLab: FC = () => {
     setMeasurement({ mode, medianMs: median, spreadMs: stats.spreadMs });
     if (mode === 'CALIBRATE') {
       setLatencyMs(median);
-      writeLatency(median);
+      saveLatency(median);
     }
   }, [hits, mode, running, stop]);
 
   const changeClickVolume = (volume: number) => {
     setClickVolume(volume);
     session.current?.setClickVolume(volume);
-    try {
-      localStorage.setItem(CLICK_VOLUME_KEY, String(volume));
-    } catch {
-      // per-viewer convenience only
-    }
+    saveClickVolume(volume);
   };
 
   const applyLatency = (ms: number) => {
     setLatencyMs(ms);
-    writeLatency(ms);
+    saveLatency(ms);
   };
 
   const stats = timingStats(hits.map((h) => h.offsetMs));
@@ -323,7 +307,7 @@ export const RhythmLab: FC = () => {
       {/* Latency correction */}
       <div className="flex flex-wrap items-center gap-3 text-xs text-slate-400">
         <span>
-          Latency correction:{' '}
+          Latency correction for this input:{' '}
           <strong className="text-slate-200 font-mono">{latencyMs} ms</strong>
           {latencyMs === 0 && <span className="text-slate-500"> (not calibrated yet)</span>}
         </span>

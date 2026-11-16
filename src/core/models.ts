@@ -77,6 +77,11 @@ export interface FilterMaskConfig {
   /** Set of active string numbers (1..6). Strings omitted are visually dimmed. */
   activeStrings: readonly number[];
   fretRange: { min: number; max: number };
+  /**
+   * If set, only these positions are in focus; every other note is greyed out like a masked
+   * string. Used to show exactly the notes of a planned scale position. Not part of the URL.
+   */
+  onlyPositions?: readonly FretPosition[];
   cagedOverlay?: {
     enabled: boolean;
     shape: CagedShapeId;
@@ -148,6 +153,7 @@ export type ExerciseType =
   | 'TRIAD_INVERSION_HUNTER'
   | 'TRIAD_ALL_INVERSIONS'
   | 'CAGED_CHORD_SHAPE'
+  | 'SCALE_RHYTHM'
   | 'SCALE_DEGREE_FINDER'
   | 'CAGED_ARPEGGIO_LINK';
 
@@ -182,6 +188,8 @@ export interface DrillChallenge {
   questionKey: string;
   /** CAGED chord-shape drill: the shape that was asked for */
   cagedShape?: CagedShapeId;
+  /** Scale-in-time drill: the notes to play and the grid they sit on */
+  rhythm?: RhythmChallengeSpec;
   headlinePrompt: string;          // e.g., "D Minor Triad — 1st Inversion"
   subPrompt: string;               // e.g., "Strings 4-5-6 | Root in bass | Key: A Minor" (display numbering: 1 = low E)
   targetPitchClasses: readonly PitchClass[];
@@ -199,6 +207,17 @@ export interface DrillChallenge {
   revealBoardState: FretboardViewState;
 }
 
+/** Notes per beat on the rhythm grid: quarters, eighths, triplets, sixteenths */
+export type RhythmSubdivision = 1 | 2 | 3 | 4;
+
+export interface RhythmChallengeSpec {
+  bpm: number;
+  subdivision: RhythmSubdivision;
+  countInBeats: number;
+  /** In playing order; slot 0 is the first slot after the count-in */
+  expected: ReadonlyArray<FretPosition & { slot: number; midi: MidiNote; degree: IntervalDegree }>;
+}
+
 export interface DrillConfig {
   exerciseType: ExerciseType;
   scaleContext: ScaleLayerConfig;
@@ -206,6 +225,8 @@ export interface DrillConfig {
   inversions: readonly TriadInversion[];
   /** CAGED chord-shape drill: shapes picked at random from these */
   cagedShapes: readonly CagedShapeId[];
+  /** Scale-in-time drill: tempo and grid */
+  rhythm: { bpm: number; subdivision: RhythmSubdivision };
   fretZone: { min: number; max: number };
   promptDurationMs: number;        // e.g., 45000
   revealDurationMs: number;        // e.g., 4000

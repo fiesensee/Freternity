@@ -7,8 +7,8 @@ import {
   PitchClass,
 } from '../../core/models';
 import { GUITAR_6_STANDARD } from '../../core/constants';
-import { getCagedFretWindows } from '../../core/cagedGeometry';
-import { FretNode } from './FretNode';
+import { FretWindow, getCagedFretWindows } from '../../core/cagedGeometry';
+import { FretNode, type ComparisonStatus } from './FretNode';
 import { CagedOverlaySvg } from './CagedOverlaySvg';
 
 export interface ViewWindow {
@@ -24,9 +24,11 @@ export interface FretboardSvgProps {
     enabled: boolean;
     shape: CagedShapeId;
     referenceRoot: PitchClass;
+    /** Outline exactly these frets instead of the shape's standard boxes */
+    windows?: readonly FretWindow[];
   };
   userSelections?: readonly FretPosition[];
-  comparisonMap?: Readonly<Record<string, 'CORRECT' | 'WRONG' | 'MISSED'>>;
+  comparisonMap?: Readonly<Record<string, ComparisonStatus>>;
   isInteractivePractice?: boolean;
   onNodeClick?: (node: ComputedFretNode) => void;
   className?: string;
@@ -107,6 +109,7 @@ export const FretboardSvg: FC<FretboardSvgProps> = ({
   // CAGED Overlay windows
   const cagedWindows = useMemo(() => {
     if (!cagedOverlay || !cagedOverlay.enabled) return [];
+    if (cagedOverlay.windows) return cagedOverlay.windows;
     return getCagedFretWindows(
       cagedOverlay.shape,
       cagedOverlay.referenceRoot,

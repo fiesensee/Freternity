@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useState, type FC } from 'react';
 import { useFretboardStore } from './store/useFretboardStore';
-import { usePracticeStore } from './store/usePracticeStore';
+import { usePracticeStore, type PracticeEvaluation } from './store/usePracticeStore';
+import type { ComparisonStatus } from './components/fretboard/FretNode';
 import { GUITAR_6_STANDARD } from './core/constants';
 import { projectFretboard } from './core/fretboardProjector';
 import { ComputedFretNode } from './core/models';
@@ -38,6 +39,7 @@ export const App: FC = () => {
   const toggleUserSelection = usePracticeStore((s) => s.toggleUserSelection);
   const inputMode = usePracticeStore((s) => s.inputMode);
   const setInputMode = usePracticeStore((s) => s.setInputMode);
+  const rhythmSpec = usePracticeStore((s) => s.engine.currentChallenge?.rhythm);
 
   const [activeTab, setActiveTab] = useState<'explore' | 'practice' | 'rhythm'>('explore');
   const [isConfigOpen, setIsConfigOpen] = useState(false);
@@ -74,10 +76,16 @@ export const App: FC = () => {
   // Comparison map: full result on REVEAL; while prompting with guitar input,
   // each played note is marked right/wrong immediately (missed notes stay hidden).
   const comparisonMap = useMemo(() => {
+    // Rhythm drill: a right note is coloured by its timing
+    const correctStatus = (ev: PracticeEvaluation, key: string): ComparisonStatus => {
+      const grade = ev.timingGrades?.[key];
+      return grade === 'ok' ? 'CORRECT_LOOSE' : grade === 'off' ? 'CORRECT_OFF' : 'CORRECT';
+    };
     if (isPracticing && practicePhase === 'PROMPTING' && liveEvaluation) {
-      const live: Record<string, 'CORRECT' | 'WRONG'> = {};
+      const live: Record<string, ComparisonStatus> = {};
       liveEvaluation.correctPositions.forEach((p) => {
-        live[`${p.stringIndex}-${p.fret}`] = 'CORRECT';
+        const key = `${p.stringIndex}-${p.fret}`;
+        live[key] = correctStatus(liveEvaluation, key);
       });
       liveEvaluation.wrongPositions.forEach((p) => {
         live[`${p.stringIndex}-${p.fret}`] = 'WRONG';
@@ -87,9 +95,10 @@ export const App: FC = () => {
     if (!isPracticing || practicePhase !== 'REVEALING' || !evaluation) {
       return undefined;
     }
-    const map: Record<string, 'CORRECT' | 'WRONG' | 'MISSED'> = {};
+    const map: Record<string, ComparisonStatus> = {};
     evaluation.correctPositions.forEach((p) => {
-      map[`${p.stringIndex}-${p.fret}`] = 'CORRECT';
+      const key = `${p.stringIndex}-${p.fret}`;
+      map[key] = correctStatus(evaluation, key);
     });
     evaluation.wrongPositions.forEach((p) => {
       map[`${p.stringIndex}-${p.fret}`] = 'WRONG';
@@ -109,11 +118,15 @@ export const App: FC = () => {
         hasCorrect: (evaluation?.correctPositions.length ?? 0) > 0,
         hasWrong: (evaluation?.wrongPositions.length ?? 0) > 0,
         hasMissed: (evaluation?.missedPositions.length ?? 0) > 0,
+        rhythm: !!rhythmSpec,
       }
-    : { kind: 'prompt', inputMode };
+    : { kind: 'prompt', inputMode, rhythm: !!rhythmSpec };
+
+  const canClickNotes =
+    isPracticing && practicePhase === 'PROMPTING' && inputMode === 'POINTER' && !rhythmSpec;
 
   const handleNodeClick = (node: ComputedFretNode) => {
-    if (isPracticing && practicePhase === 'PROMPTING' && inputMode === 'POINTER') {
+    if (canClickNotes) {
       audioSynthAdapter.playSingleNote(node.frequencyHz);
       toggleUserSelection(node.position);
     }
@@ -225,14 +238,17 @@ export const App: FC = () => {
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 py-6 flex flex-col gap-5">
         {/* Practice Mode: If not practicing, display the dedicated Setup Screen first */}
         {activeTab === 'practice' && !isPracticing && (
-          <DrillSetupCard />
+          <DrillSetupCard onOpenRhythmLab={handleSwitchToRhythm} />
         )}
 
         {activeTab === 'rhythm' && !isPracticing && <RhythmLab />}
 
         {/* Practice Mode HUD (active during running drill) */}
         {isPracticing && (
-          <PracticeHud onOpenSettings={() => setIsConfigOpen(true)} />
+          <PracticeHud
+            onOpenSettings={() => setIsConfigOpen(true)}
+            onOpenRhythmLab={handleSwitchToRhythm}
+          />
         )}
 
         {/* Explore: what to show, phrased as one sentence */}
@@ -269,9 +285,7 @@ export const App: FC = () => {
               viewWindow={viewWindow}
               userSelections={isPracticing ? userSelections : undefined}
               comparisonMap={comparisonMap}
-              isInteractivePractice={
-                isPracticing && practicePhase === 'PROMPTING' && inputMode === 'POINTER'
-              }
+              isInteractivePractice={canClickNotes}
               onNodeClick={handleNodeClick}
               cagedOverlay={
                 effectiveViewState.filterMask.cagedOverlay &&
@@ -285,6 +299,11 @@ export const App: FC = () => {
                         effectiveViewState.targetLayer.enabled
                           ? effectiveViewState.targetLayer.rootPitchClass
                           : effectiveViewState.scaleLayer.rootPitchClass,
+                      // Scale in time: outline the frets the position really uses, once
+                      windows:
+                        isPracticing && rhythmSpec
+                          ? [effectiveViewState.filterMask.fretRange]
+                          : undefined,
                     }
                   : undefined
               }
