@@ -26,6 +26,12 @@ describe('appendHeardNote', () => {
     expect(heard).toEqual([64, 60, 67]);
   });
 
+  it('keeps one full pass of a larger voicing, e.g. a 6-note chord shape', () => {
+    let heard: number[] = [];
+    for (let m = 40; m < 48; m++) heard = appendHeardNote(heard, m, 'CAGED_CHORD_SHAPE', 6);
+    expect(heard).toEqual([42, 43, 44, 45, 46, 47]);
+  });
+
   it('keeps more notes for the all inversions drill', () => {
     let heard: number[] = [];
     for (let m = 50; m < 59; m++) heard = appendHeardNote(heard, m, 'TRIAD_ALL_INVERSIONS');

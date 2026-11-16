@@ -13,6 +13,8 @@ import {
 } from '../../core/musicTheory';
 import { CagedShapeId, PitchClass, TriadInversion } from '../../core/models';
 import { Popover } from './Popover';
+import { formatStringSet } from '../../core/stringNumbering';
+import { isCagedChordQuality } from '../../core/cagedChordShapes';
 
 /**
  * Explore controls phrased as one sentence:
@@ -45,12 +47,15 @@ const INVERSIONS: readonly { id: TriadInversion | undefined; label: string; hint
   { id: 'SECOND', label: '2nd inversion', hint: '5th in the bass' },
 ];
 
+// Internal indices (1 = high E), listed low → high so labels read 1-2-3 … 4-5-6
 const TRIAD_STRING_SETS: readonly (readonly number[])[] = [
-  [1, 2, 3],
-  [2, 3, 4],
-  [3, 4, 5],
   [4, 5, 6],
+  [3, 4, 5],
+  [2, 3, 4],
+  [1, 2, 3],
 ];
+/** Strings G-B-E: where most people learn triad inversions first */
+const DEFAULT_TRIAD_STRING_SET = TRIAD_STRING_SETS[3];
 
 const CAGED_SHAPES: readonly CagedShapeId[] = ['C', 'A', 'G', 'E', 'D'];
 
@@ -342,7 +347,7 @@ const InversionMenu: FC = () => {
   // An inversion only exists on 3 adjacent strings: pick a set automatically if needed
   const selectInversion = (inversion: TriadInversion | undefined) => {
     setTargetLayer({ activeInversion: inversion });
-    if (inversion && !activeSet) setActiveStrings(TRIAD_STRING_SETS[0]);
+    if (inversion && !activeSet) setActiveStrings(DEFAULT_TRIAD_STRING_SET);
   };
 
   return (
@@ -369,7 +374,7 @@ const InversionMenu: FC = () => {
                 onClick={() => setActiveStrings(set)}
                 className="py-1 text-[11px] font-mono text-center"
               >
-                {set.join('-')}
+                {formatStringSet(set)}
               </Option>
             ))}
           </div>
@@ -382,6 +387,9 @@ const InversionMenu: FC = () => {
 const AreaMenu: FC = () => {
   const caged = useFretboardStore((s) => s.viewState.filterMask.cagedOverlay);
   const chordShown = useFretboardStore((s) => s.viewState.targetLayer.enabled);
+  const chordIsCagedShapeable = useFretboardStore((s) =>
+    isCagedChordQuality(s.viewState.targetLayer.chordId)
+  );
   const setCagedOverlay = useFretboardStore((s) => s.setCagedOverlay);
   const setCagedShape = useFretboardStore((s) => s.setCagedShape);
 
@@ -435,6 +443,13 @@ const AreaMenu: FC = () => {
               </Option>
             ))}
           </div>
+          <p className="mt-1.5 text-[11px] text-slate-500">
+            {effectiveReference === 'TARGET_ROOT'
+              ? chordIsCagedShapeable
+                ? 'The chord’s own shape is outlined inside the box.'
+                : 'Diminished chords have no CAGED chord shape.'
+              : 'Build it on the chord root to see the chord’s shape.'}
+          </p>
         </div>
       )}
     </div>

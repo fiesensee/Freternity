@@ -143,7 +143,8 @@ export const FretNode: FC<FretNodeProps> = ({
   }
 
   // Active isolated triad voicing highlighting
-  const showVoicingGlow = (node.isActiveTriadVoicing && !isGhost) || isCorrect;
+  const showVoicingGlow =
+    ((node.isActiveTriadVoicing || node.isActiveChordShape) && !isGhost) || isCorrect;
 
   return (
     <g

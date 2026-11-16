@@ -9,7 +9,7 @@ describe('triadInversionGenerator', () => {
 
     expect(challenge.id).toBeDefined();
     expect(challenge.headlinePrompt).toContain('Triad');
-    expect(challenge.subPrompt).toContain('Strings 1-2-3');
+    expect(challenge.subPrompt).toContain('Strings 4-5-6');
     expect(challenge.targetPitchClasses.length).toBe(3);
     expect(challenge.validVoicings.length).toBeGreaterThan(0);
 
@@ -46,7 +46,7 @@ describe('triadInversionGenerator', () => {
     };
 
     const challenge = generateTriadInversionChallenge(customConfig, GUITAR_6_STANDARD);
-    expect(challenge.subPrompt).toContain('Strings 2-3-4');
+    expect(challenge.subPrompt).toContain('Strings 3-4-5');
     expect(challenge.headlinePrompt).toContain('Root Position');
 
     // All valid voicings must be on strings 2, 3, 4

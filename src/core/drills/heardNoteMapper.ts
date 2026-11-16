@@ -9,7 +9,10 @@ import { DrillConfig, FretPosition, InstrumentConfig, MidiNote } from '../models
  * as a wrong pick.
  */
 
-/** Distinct notes kept for the single-voicing drill — a fresh 3-note pass replaces mistakes. */
+/**
+ * Distinct notes kept for a single-voicing drill: one fresh pass through the voicing
+ * (3 notes for a triad, up to 6 for a CAGED chord shape) replaces earlier mistakes.
+ */
 const SINGLE_VOICING_WINDOW = 3;
 /** Upper bound for the all-inversions drill (3 inversions × 3 notes, plus slack). */
 const ALL_INVERSIONS_WINDOW = 16;
@@ -17,10 +20,12 @@ const ALL_INVERSIONS_WINDOW = 16;
 export function appendHeardNote(
   heard: readonly MidiNote[],
   midi: MidiNote,
-  exerciseType: DrillConfig['exerciseType']
+  exerciseType: DrillConfig['exerciseType'],
+  /** Notes in the voicing being played; defaults to a triad */
+  voicingSize: number = SINGLE_VOICING_WINDOW
 ): MidiNote[] {
   const windowSize =
-    exerciseType === 'TRIAD_ALL_INVERSIONS' ? ALL_INVERSIONS_WINDOW : SINGLE_VOICING_WINDOW;
+    exerciseType === 'TRIAD_ALL_INVERSIONS' ? ALL_INVERSIONS_WINDOW : voicingSize;
   const withoutDuplicate = heard.filter((m) => m !== midi);
   return [...withoutDuplicate, midi].slice(-windowSize);
 }

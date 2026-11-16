@@ -32,6 +32,10 @@ export function computeRms(buffer: ArrayLike<number>): number {
   return buffer.length > 0 ? Math.sqrt(sum / buffer.length) : 0;
 }
 
+/**
+ * Note: the buffer must hold at least two periods of `minFrequencyHz`
+ * (2 × sampleRate / minFrequencyHz samples), otherwise the lowest notes can't be found.
+ */
 export function detectPitchYin(
   buffer: ArrayLike<number>,
   sampleRate: number,
@@ -88,6 +92,42 @@ export function detectPitchYin(
     frequencyHz: sampleRate / refinedTau,
     clarity: Math.max(0, Math.min(1, 1 - cmnd[bestTau])),
   };
+}
+
+/** Sample rate the detector is tuned for: a 2048-sample frame then spans ~43 ms. */
+export const ANALYSIS_SAMPLE_RATE = 48000;
+/** Samples handed to the detector per analysis frame (after downsampling). */
+export const ANALYSIS_FRAME_SIZE = 2048;
+
+/**
+ * How many input samples to merge into one so the detector always runs near 48 kHz.
+ * Audio interfaces often run at 88.2/96/192 kHz; analysed directly, a 2048-sample frame
+ * would then be too short to hold two periods of the low E (82 Hz) and F (87 Hz).
+ */
+export function analysisDecimation(sampleRate: number): number {
+  return Math.max(1, Math.round(sampleRate / ANALYSIS_SAMPLE_RATE));
+}
+
+/**
+ * Downsamples by averaging each group of `factor` samples (a crude but sufficient
+ * low-pass: guitar fundamentals stay far below the new Nyquist frequency).
+ */
+export function downsampleByAveraging(
+  input: ArrayLike<number>,
+  factor: number,
+  output: Float32Array = new Float32Array(Math.floor(input.length / factor))
+): Float32Array {
+  if (factor <= 1) {
+    for (let i = 0; i < output.length; i++) output[i] = input[i];
+    return output;
+  }
+  for (let i = 0; i < output.length; i++) {
+    let sum = 0;
+    const start = i * factor;
+    for (let k = 0; k < factor; k++) sum += input[start + k];
+    output[i] = sum / factor;
+  }
+  return output;
 }
 
 /** Continuous (fractional) MIDI note number for a frequency. A4 = 440 Hz = 69. */

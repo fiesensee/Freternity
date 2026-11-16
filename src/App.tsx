@@ -1,14 +1,20 @@
-import { useMemo, useState, type FC } from 'react';
+import { useCallback, useMemo, useState, type FC } from 'react';
 import { useFretboardStore } from './store/useFretboardStore';
 import { usePracticeStore } from './store/usePracticeStore';
 import { GUITAR_6_STANDARD } from './core/constants';
 import { projectFretboard } from './core/fretboardProjector';
 import { ComputedFretNode } from './core/models';
-import { FretboardLegend, type LegendContext } from './components/fretboard';
+import { ChordShapeStrip, FretboardLegend, type LegendContext } from './components/fretboard';
 import { FretboardSvg } from './components/fretboard';
 import { audioSynthAdapter } from './adapters/audioSynth';
 import { APP_VERSION } from './version';
-import { LensSwitcher, SentenceBar, ViewMenu } from './components/controls';
+import {
+  LensSwitcher,
+  SentenceBar,
+  TunerBar,
+  TuningForkIcon,
+  ViewMenu,
+} from './components/controls';
 import {
   DrillConfigModal,
   DrillSetupCard,
@@ -35,6 +41,8 @@ export const App: FC = () => {
   const [activeTab, setActiveTab] = useState<'explore' | 'practice'>('explore');
   const [isConfigOpen, setIsConfigOpen] = useState(false);
   const [copiedUrl, setCopiedUrl] = useState(false);
+  const [isTunerOpen, setIsTunerOpen] = useState(false);
+  const closeTuner = useCallback(() => setIsTunerOpen(false), []);
 
   const isPracticing = practicePhase !== 'IDLE';
 
@@ -159,6 +167,20 @@ export const App: FC = () => {
           </div>
 
           <div className="flex items-center gap-2">
+            <button
+              onClick={() => setIsTunerOpen((open) => !open)}
+              aria-expanded={isTunerOpen}
+              title="Tuner & guitar input"
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition cursor-pointer ${
+                isTunerOpen
+                  ? 'bg-emerald-600/20 text-emerald-300 border-emerald-500/50'
+                  : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700'
+              }`}
+            >
+              <TuningForkIcon />
+              <span>Tune</span>
+            </button>
+
             {/* Share / Copy URL Button */}
             <button
               onClick={copyShareUrl}
@@ -177,6 +199,8 @@ export const App: FC = () => {
             </button>
           </div>
         </div>
+
+        {isTunerOpen && <TunerBar onClose={closeTuner} />}
       </header>
 
       {/* Main Content Area */}
@@ -245,6 +269,8 @@ export const App: FC = () => {
                   : undefined
               }
             />
+
+            {!isPracticing && <ChordShapeStrip viewState={effectiveViewState} />}
 
             <FretboardLegend context={legendContext} />
           </div>

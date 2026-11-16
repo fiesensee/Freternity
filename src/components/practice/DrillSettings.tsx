@@ -1,23 +1,26 @@
 import { useState, type FC, type ReactNode } from 'react';
 import { usePracticeStore } from '../../store/usePracticeStore';
-import { DrillConfig, PitchClass, TriadInversion } from '../../core/models';
+import { CagedShapeId, DrillConfig, PitchClass, TriadInversion } from '../../core/models';
 import { DIATONIC_MODES, SCALE_MAP } from '../../core/constants';
 import {
   getScaleShortName,
   isFlatKeySignature,
   resolveRootNoteName,
 } from '../../core/musicTheory';
+import { formatStringSet } from '../../core/stringNumbering';
+import { ALL_CAGED_SHAPES } from '../../core/drills/cagedChordShapeGenerator';
 
 /**
  * Building blocks for drill settings, shared by the setup screen and the in-drill
  * settings dialog so both always offer the same options with the same wording.
  */
 
+// Internal indices (1 = high E); labels use display numbering (1 = low E)
 const STRING_SETS: readonly { label: string; strings: readonly number[] }[] = [
-  { label: '1-2-3 (high)', strings: [1, 2, 3] },
-  { label: '2-3-4', strings: [2, 3, 4] },
-  { label: '3-4-5', strings: [3, 4, 5] },
-  { label: '4-5-6 (low)', strings: [4, 5, 6] },
+  { label: '1-2-3 (low)', strings: [4, 5, 6] },
+  { label: '2-3-4', strings: [3, 4, 5] },
+  { label: '3-4-5', strings: [2, 3, 4] },
+  { label: '4-5-6 (high)', strings: [1, 2, 3] },
 ];
 
 const INVERSIONS: readonly { id: TriadInversion; label: string; short: string }[] = [
@@ -94,6 +97,11 @@ const DRILL_TYPES: readonly {
     title: 'Find all three inversions',
     description: 'You get a chord. Find root position, 1st and 2nd inversion on the given strings.',
   },
+  {
+    id: 'CAGED_CHORD_SHAPE',
+    title: 'Chord in a CAGED shape',
+    description: 'You get a chord and a shape, e.g. “Am in the G shape”. Play that exact shape, not a neighbouring one.',
+  },
 ];
 
 export const DrillTypePicker: FC<{ compact?: boolean }> = ({ compact = false }) => {
@@ -118,7 +126,7 @@ export const DrillTypePicker: FC<{ compact?: boolean }> = ({ compact = false }) 
   }
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
       {DRILL_TYPES.map((d) => {
         const selected = exerciseType === d.id;
         return (
@@ -266,9 +274,39 @@ export const DrillOptions: FC = () => {
     }
   };
 
+  const toggleShape = (shape: CagedShapeId) => {
+    if (config.cagedShapes.includes(shape)) {
+      if (config.cagedShapes.length <= 1) return;
+      updateConfig({ cagedShapes: config.cagedShapes.filter((s) => s !== shape) });
+    } else {
+      // Keep C-A-G-E-D order so the summary reads naturally
+      updateConfig({
+        cagedShapes: ALL_CAGED_SHAPES.filter((s) => s === shape || config.cagedShapes.includes(s)),
+      });
+    }
+  };
+
+  const isCagedDrill = config.exerciseType === 'CAGED_CHORD_SHAPE';
+
   return (
     <div className="flex flex-col gap-5">
-      {config.exerciseType !== 'TRIAD_ALL_INVERSIONS' && (
+      {isCagedDrill && (
+        <SettingsSection title="Shapes" hint="picked at random from these">
+          <div className="flex flex-wrap gap-2">
+            {ALL_CAGED_SHAPES.map((shape) => (
+              <Chip
+                key={shape}
+                selected={config.cagedShapes.includes(shape)}
+                onClick={() => toggleShape(shape)}
+              >
+                {shape} shape
+              </Chip>
+            ))}
+          </div>
+        </SettingsSection>
+      )}
+
+      {config.exerciseType === 'TRIAD_INVERSION_HUNTER' && (
         <SettingsSection title="Inversions" hint="picked at random from these">
           <div className="flex flex-wrap gap-2">
             {INVERSIONS.map((inv) => (
@@ -284,19 +322,21 @@ export const DrillOptions: FC = () => {
         </SettingsSection>
       )}
 
-      <SettingsSection title="Strings" hint="picked at random from these">
-        <div className="flex flex-wrap gap-2">
-          {STRING_SETS.map((set) => (
-            <Chip
-              key={set.label}
-              selected={config.stringSets.some((s) => sameSet(s, set.strings))}
-              onClick={() => toggleStringSet(set.strings)}
-            >
-              {set.label}
-            </Chip>
-          ))}
-        </div>
-      </SettingsSection>
+      {!isCagedDrill && (
+        <SettingsSection title="Strings" hint="picked at random from these">
+          <div className="flex flex-wrap gap-2">
+            {STRING_SETS.map((set) => (
+              <Chip
+                key={set.label}
+                selected={config.stringSets.some((s) => sameSet(s, set.strings))}
+                onClick={() => toggleStringSet(set.strings)}
+              >
+                {set.label}
+              </Chip>
+            ))}
+          </div>
+        </SettingsSection>
+      )}
 
       <SettingsSection title="After each challenge">
         <div className="flex flex-wrap gap-2">
@@ -353,23 +393,28 @@ export const DrillOptions: FC = () => {
 
 /** One-line description of the settings behind "Customize" (the collapsed setup summary). */
 export function summarizeDrillOptions(config: DrillConfig): string[] {
-  const strings = config.stringSets.map((s) => s.join('-')).join(', ');
+  const after = config.autoAdvance
+    ? `next after ${Math.round(config.revealDurationMs / 1000)}s`
+    : 'self-graded';
+  const drone = config.playDrone ? 'drone on' : 'drone off';
+
+  if (config.exerciseType === 'CAGED_CHORD_SHAPE') {
+    const shapes =
+      config.cagedShapes.length === ALL_CAGED_SHAPES.length || config.cagedShapes.length === 0
+        ? 'all 5 shapes'
+        : `${config.cagedShapes.join(', ')} ${config.cagedShapes.length === 1 ? 'shape' : 'shapes'}`;
+    return [shapes, after, drone];
+  }
+
+  const strings = config.stringSets.map((s) => formatStringSet(s)).join(', ');
   const inversions =
     config.exerciseType === 'TRIAD_ALL_INVERSIONS' || config.inversions.length === 3
       ? 'all inversions'
       : INVERSIONS.filter((i) => config.inversions.includes(i.id))
           .map((i) => i.short)
           .join(' & ');
-  const after = config.autoAdvance
-    ? `next after ${Math.round(config.revealDurationMs / 1000)}s`
-    : 'self-graded';
 
-  return [
-    `strings ${strings}`,
-    inversions,
-    after,
-    config.playDrone ? 'drone on' : 'drone off',
-  ];
+  return [`strings ${strings}`, inversions, after, drone];
 }
 
 export function describeKey(scaleContext: DrillConfig['scaleContext']): string {

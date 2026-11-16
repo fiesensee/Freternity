@@ -1,5 +1,6 @@
 import { type FC, type ReactNode } from 'react';
 import { FretboardViewState } from '../../core/models';
+import { getActiveCagedChordShape } from '../../core/fretboardProjector';
 
 export type LegendContext =
   | { kind: 'explore'; viewState: FretboardViewState }
@@ -35,6 +36,19 @@ const chordToneItems = (viewState: FretboardViewState) =>
         <Item key="5th" dot={<Dot className="bg-amber-600 border border-amber-200" />} label="5th" />,
       ]
     : [];
+
+const chordShapeItem = (viewState: FretboardViewState) => {
+  const active = getActiveCagedChordShape(viewState);
+  return active
+    ? [
+        <Item
+          key="shape"
+          dot={<Dot className="border-2 border-sky-400 border-dashed" />}
+          label={`${active.shape}-shape chord`}
+        />,
+      ]
+    : [];
+};
 
 const scaleItem = (viewState: FretboardViewState) =>
   viewState.scaleLayer.enabled && !viewState.targetLayer.enabled
@@ -73,6 +87,7 @@ export const FretboardLegend: FC<{ context: LegendContext }> = ({ context }) => 
             />,
           ]
         : []),
+      ...chordShapeItem(viewState),
       ...scaleItem(viewState),
     ];
   } else if (context.kind === 'prompt') {
@@ -95,6 +110,7 @@ export const FretboardLegend: FC<{ context: LegendContext }> = ({ context }) => 
         ? [<Item key="miss" dot={<Dot className="bg-rose-600 border-2 border-amber-400" />} label="You missed it" />]
         : []),
       ...chordToneItems(context.viewState),
+      ...chordShapeItem(context.viewState),
       ...scaleItem(context.viewState),
     ];
   }

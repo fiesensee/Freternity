@@ -26,6 +26,72 @@ function useInputMonitor(active: boolean): InputMonitorSnapshot | null {
   return snapshot;
 }
 
+/**
+ * Which input to listen to and how sensitive the noise gate is. `active` = the mic is open
+ * (device names are only readable after permission was granted).
+ */
+export const InputDeviceControls: FC<{ active: boolean; compact?: boolean }> = ({
+  active,
+  compact = false,
+}) => {
+  const [devices, setDevices] = useState<AudioInputDevice[]>([]);
+  const [deviceId, setDeviceId] = useState(guitarPitchInput.getDeviceId() ?? '');
+  const [sensitivity, setSensitivity] = useState(guitarPitchInput.getSensitivity());
+
+  useEffect(() => {
+    if (!active) return;
+    guitarPitchInput.listInputDevices().then(setDevices).catch(() => setDevices([]));
+  }, [active]);
+
+  const changeDevice = (id: string) => {
+    setDeviceId(id);
+    guitarPitchInput.setDevice(id).catch(() => {});
+  };
+
+  const changeSensitivity = (value: number) => {
+    setSensitivity(value);
+    guitarPitchInput.setSensitivity(value);
+  };
+
+  return (
+    <div className={`flex flex-wrap items-center ${compact ? 'gap-x-4 gap-y-2' : 'gap-4'}`}>
+      <label
+        className="flex items-center gap-2 text-[11px] text-slate-400"
+        title="Raise it if plucked notes aren't picked up, lower it if notes appear while you're not playing"
+      >
+        Sensitivity
+        <input
+          type="range"
+          min={1}
+          max={10}
+          step={1}
+          value={sensitivity}
+          onChange={(e) => changeSensitivity(Number(e.target.value))}
+          className="w-24 accent-sky-500"
+        />
+      </label>
+
+      {devices.length > 1 && (
+        <label className="flex items-center gap-2 text-[11px] text-slate-400">
+          Input
+          <select
+            value={deviceId}
+            onChange={(e) => changeDevice(e.target.value)}
+            className="bg-slate-900 border border-slate-700 rounded-md px-2 py-1 text-xs text-slate-200 max-w-[14rem]"
+          >
+            <option value="">System default</option>
+            {devices.map((d) => (
+              <option key={d.deviceId} value={d.deviceId}>
+                {d.label}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
+    </div>
+  );
+};
+
 export interface GuitarInputPanelProps {
   /**
    * full: setup screen section · toggle: just the input switch (drill menu) ·
@@ -40,29 +106,9 @@ export const GuitarInputPanel: FC<GuitarInputPanelProps> = ({ variant = 'full' }
   const error = usePracticeStore((s) => s.guitarInputError);
   const setInputMode = usePracticeStore((s) => s.setInputMode);
 
-  const [devices, setDevices] = useState<AudioInputDevice[]>([]);
-  const [deviceId, setDeviceId] = useState(guitarPitchInput.getDeviceId() ?? '');
-  const [sensitivity, setSensitivity] = useState(guitarPitchInput.getSensitivity());
-
   const isListening = status === 'LISTENING';
   const monitor = useInputMonitor(isListening);
   const supported = GuitarPitchInputAdapter.isSupported();
-
-  // Labels only become available after permission, so refresh once listening starts.
-  useEffect(() => {
-    if (!isListening) return;
-    guitarPitchInput.listInputDevices().then(setDevices).catch(() => setDevices([]));
-  }, [isListening]);
-
-  const changeDevice = (id: string) => {
-    setDeviceId(id);
-    guitarPitchInput.setDevice(id).catch(() => {});
-  };
-
-  const changeSensitivity = (value: number) => {
-    setSensitivity(value);
-    guitarPitchInput.setSensitivity(value);
-  };
 
   const modeButton = (mode: 'POINTER' | 'GUITAR', label: string) => (
     <button
@@ -167,37 +213,8 @@ export const GuitarInputPanel: FC<GuitarInputPanelProps> = ({ variant = 'full' }
             <>
               <div className="flex flex-wrap items-center gap-4">
                 {meter}
-                <label className="flex items-center gap-2 text-[11px] text-slate-400">
-                  Sensitivity
-                  <input
-                    type="range"
-                    min={1}
-                    max={10}
-                    step={1}
-                    value={sensitivity}
-                    onChange={(e) => changeSensitivity(Number(e.target.value))}
-                    className="w-24 accent-sky-500"
-                  />
-                </label>
+                <InputDeviceControls active={isListening} />
               </div>
-
-              {devices.length > 1 && (
-                <label className="flex items-center gap-2 text-[11px] text-slate-400">
-                  Input
-                  <select
-                    value={deviceId}
-                    onChange={(e) => changeDevice(e.target.value)}
-                    className="bg-slate-900 border border-slate-700 rounded-md px-2 py-1 text-xs text-slate-200 max-w-xs"
-                  >
-                    <option value="">System default</option>
-                    {devices.map((d) => (
-                      <option key={d.deviceId} value={d.deviceId}>
-                        {d.label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              )}
             </>
           )}
 

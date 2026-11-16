@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
+  ANALYSIS_FRAME_SIZE,
+  analysisDecimation,
   computeRms,
+  downsampleByAveraging,
   detectPitchYin,
   frequencyToMidiFloat,
 } from '../../../src/core/pitch/yinPitchDetector';
@@ -37,6 +40,40 @@ describe('detectPitchYin', () => {
   it('does not jump an octave on a tone with a strong 2nd harmonic', () => {
     const result = detectPitchYin(pluckedTone(midiHz(50), [0.5, 1, 0.3]), SAMPLE_RATE);
     expect(Math.round(frequencyToMidiFloat(result!.frequencyHz))).toBe(50);
+  });
+
+  describe('high sample rates (audio interfaces at 88.2 / 96 / 192 kHz)', () => {
+    const toneAt = (freq: number, sampleRate: number, length: number) =>
+      Float32Array.from({ length }, (_, i) =>
+        [1, 0.6, 0.4, 0.25].reduce(
+          (acc, amp, h) => acc + amp * Math.sin((2 * Math.PI * freq * (h + 1) * i) / sampleRate),
+          0
+        ) * 0.2
+      );
+
+    it('a raw 2048-sample frame at 96 kHz is too short for low E and F (the bug)', () => {
+      expect(detectPitchYin(toneAt(midiHz(40), 96000, 2048), 96000)).toBeNull();
+      expect(detectPitchYin(toneAt(midiHz(41), 96000, 2048), 96000)).toBeNull();
+    });
+
+    it.each([44100, 48000, 88200, 96000, 176400, 192000])(
+      'detects low E and F at %i Hz once downsampled to ~48 kHz',
+      (sampleRate) => {
+        const factor = analysisDecimation(sampleRate);
+        for (const midi of [40, 41, 42]) {
+          const raw = toneAt(midiHz(midi), sampleRate, ANALYSIS_FRAME_SIZE * factor);
+          const frame = downsampleByAveraging(raw, factor);
+          expect(frame).toHaveLength(ANALYSIS_FRAME_SIZE);
+          const result = detectPitchYin(frame, sampleRate / factor);
+          expect(result).not.toBeNull();
+          expect(Math.abs((frequencyToMidiFloat(result!.frequencyHz) - midi) * 100)).toBeLessThan(10);
+        }
+      }
+    );
+
+    it('picks the downsampling factor from the sample rate', () => {
+      expect([44100, 48000, 88200, 96000, 192000].map(analysisDecimation)).toEqual([1, 1, 2, 2, 4]);
+    });
   });
 
   it('returns null for white noise', () => {

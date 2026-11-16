@@ -1,4 +1,5 @@
 import {
+  CagedShapeId,
   ComputedFretNode,
   FretboardViewState,
   FretPosition,
@@ -16,6 +17,35 @@ import {
 } from './musicTheory';
 import { findClosedTriadVoicings } from './triadVoicings';
 import { isFretInCagedStencil } from './cagedGeometry';
+import {
+  CagedChordQuality,
+  findCagedChordVoicings,
+  isCagedChordQuality,
+} from './cagedChordShapes';
+
+/**
+ * The CAGED chord shape to light up, if any: the fingering of the highlighted chord inside
+ * its CAGED box. Only when the box is built on the chord root (otherwise box and chord don't
+ * line up) and no inversion is isolated (that's a different voicing on top of it).
+ */
+export function getActiveCagedChordShape(
+  state: FretboardViewState
+): { rootPitchClass: FretboardViewState['targetLayer']['rootPitchClass']; quality: CagedChordQuality; shape: CagedShapeId } | null {
+  const caged = state.filterMask.cagedOverlay;
+  const { targetLayer } = state;
+  const isolatesInversion =
+    !!targetLayer.activeInversion && state.filterMask.activeStrings.length === 3;
+  if (
+    !caged?.enabled ||
+    caged.referenceRoot !== 'TARGET_ROOT' ||
+    !targetLayer.enabled ||
+    isolatesInversion ||
+    !isCagedChordQuality(targetLayer.chordId)
+  ) {
+    return null;
+  }
+  return { rootPitchClass: targetLayer.rootPitchClass, quality: targetLayer.chordId, shape: caged.shape };
+}
 
 export function projectFretboard(
   state: FretboardViewState,
@@ -42,6 +72,23 @@ export function projectFretboard(
     for (const v of voicings) {
       for (const pos of v.positions) {
         activeVoicingPositions.add(`${pos.stringIndex}-${pos.fret}`);
+      }
+    }
+  }
+
+  const activeChordShapePositions = new Set<string>();
+  const chordShape = getActiveCagedChordShape(state);
+  if (chordShape) {
+    const voicings = findCagedChordVoicings(
+      chordShape.rootPitchClass,
+      chordShape.quality,
+      chordShape.shape,
+      instrument,
+      state.filterMask.fretRange
+    );
+    for (const v of voicings) {
+      for (const pos of v.tones) {
+        activeChordShapePositions.add(`${pos.stringIndex}-${pos.fret}`);
       }
     }
   }
@@ -120,6 +167,8 @@ export function projectFretboard(
         `${stringNumber}-${fret}`
       );
 
+      const isActiveChordShape = activeChordShapePositions.has(`${stringNumber}-${fret}`);
+
       // CAGED Stencil
       let inCagedStencil = false;
       if (state.filterMask.cagedOverlay && state.filterMask.cagedOverlay.enabled) {
@@ -183,6 +232,7 @@ export function projectFretboard(
         targetInterval: targetInterval as any,
         isTargetRoot,
         isActiveTriadVoicing,
+        isActiveChordShape,
         inCagedStencil,
         isMaskedOut,
         visualPriority,

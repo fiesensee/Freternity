@@ -12,6 +12,7 @@ import {
 } from '../models';
 import { CHORD_MAP, GUITAR_6_STANDARD, SCALE_MAP } from '../constants';
 import { compareVoicingsByNeckPosition, findClosedTriadVoicings } from '../triadVoicings';
+import { formatStringSet } from '../stringNumbering';
 import {
   CHROMATIC_FLATS,
   CHROMATIC_SHARPS,
@@ -139,8 +140,8 @@ export function generateTriadInversionChallenge(
     : `${chordName} (${selectedTriad.roman}) — ${invLabel}`;
 
   const subPrompt = isAllInversions
-    ? `Strings ${selectedStringSet.join('-')} | Root pos, 1st & 2nd inversion | Key: ${scaleRootName} ${getScaleShortName(scaleDef)}`
-    : `Strings ${selectedStringSet.join('-')} | ${bassDesc} | Key: ${scaleRootName} ${getScaleShortName(scaleDef)}`;
+    ? `Strings ${formatStringSet(selectedStringSet)} | Root pos, 1st & 2nd inversion | Key: ${scaleRootName} ${getScaleShortName(scaleDef)}`
+    : `Strings ${formatStringSet(selectedStringSet)} | ${bassDesc} | Key: ${scaleRootName} ${getScaleShortName(scaleDef)}`;
 
   // Each list ordered from the nut upward, so [0] is the shape nearest the nut
   const voicingsOf = (inv: TriadInversion) =>
@@ -256,6 +257,13 @@ export function generateTriadInversionChallenge(
   return {
     id: `challenge-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
     exerciseType: config.exerciseType,
+    questionKey: [
+      config.exerciseType,
+      selectedTriad.rootPitch,
+      selectedTriad.chordId,
+      isAllInversions ? 'ALL' : selectedInversion,
+      [...selectedStringSet].sort((a, b) => a - b).join('-'),
+    ].join('|'),
     headlinePrompt,
     subPrompt,
     targetPitchClasses,

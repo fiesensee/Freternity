@@ -117,6 +117,8 @@ export interface ComputedFretNode {
   targetInterval?: IntervalDegree; // Relative to Target Chord Root (e.g., '1', 'b3', '5')
   isTargetRoot: boolean;
   isActiveTriadVoicing: boolean;   // True if part of the specifically isolated inversion shape
+  /** True if part of the CAGED chord shape for the target chord (CAGED overlay on the chord root) */
+  isActiveChordShape: boolean;
 
   // Geometric / Filter Metadata
   inCagedStencil: boolean;
@@ -142,11 +144,23 @@ export interface ComputedFretNode {
 
 export type DrillPhase = 'IDLE' | 'PROMPTING' | 'REVEALING' | 'PAUSED' | 'SUMMARY';
 
+export type ExerciseType =
+  | 'TRIAD_INVERSION_HUNTER'
+  | 'TRIAD_ALL_INVERSIONS'
+  | 'CAGED_CHORD_SHAPE'
+  | 'SCALE_DEGREE_FINDER'
+  | 'CAGED_ARPEGGIO_LINK';
+
+/** What a chord tone does in the chord */
+export type ChordToneRole = 'Root' | '3rd' | '5th';
+
 export interface DrillNoteInfo {
   pitchClass: PitchClass;
   noteName: string;
   interval: IntervalDegree;
-  role: 'Root' | '3rd' | '5th';
+  role: ChordToneRole;
+  /** Degree of this note in the key the drill is set in, e.g. '2' for A in G major */
+  scaleDegree?: IntervalDegree;
 }
 
 export interface VoicingStringNote {
@@ -155,14 +169,21 @@ export interface VoicingStringNote {
   pitchClass: PitchClass;
   noteName: string;
   interval: IntervalDegree;
-  role: 'Root' | '3rd' | '5th';
+  role: ChordToneRole;
 }
 
 export interface DrillChallenge {
   id: string;
-  exerciseType?: 'TRIAD_INVERSION_HUNTER' | 'TRIAD_ALL_INVERSIONS' | 'SCALE_DEGREE_FINDER' | 'CAGED_ARPEGGIO_LINK';
+  exerciseType?: ExerciseType;
+  /**
+   * Identifies the question independent of randomness in how it's presented: two challenges
+   * with the same key ask the player for the same thing (used to avoid back-to-back repeats).
+   */
+  questionKey: string;
+  /** CAGED chord-shape drill: the shape that was asked for */
+  cagedShape?: CagedShapeId;
   headlinePrompt: string;          // e.g., "D Minor Triad — 1st Inversion"
-  subPrompt: string;               // e.g., "Strings 1-2-3 | Parent Key: A Aeolian (iv)"
+  subPrompt: string;               // e.g., "Strings 4-5-6 | Root in bass | Key: A Minor" (display numbering: 1 = low E)
   targetPitchClasses: readonly PitchClass[];
   /** Detailed constituent triad notes with enharmonic names and interval roles */
   solutionNotes: readonly DrillNoteInfo[];
@@ -179,10 +200,12 @@ export interface DrillChallenge {
 }
 
 export interface DrillConfig {
-  exerciseType: 'TRIAD_INVERSION_HUNTER' | 'TRIAD_ALL_INVERSIONS' | 'SCALE_DEGREE_FINDER' | 'CAGED_ARPEGGIO_LINK';
+  exerciseType: ExerciseType;
   scaleContext: ScaleLayerConfig;
   stringSets: ReadonlyArray<readonly number[]>; // e.g., [[1, 2, 3], [2, 3, 4]]
   inversions: readonly TriadInversion[];
+  /** CAGED chord-shape drill: shapes picked at random from these */
+  cagedShapes: readonly CagedShapeId[];
   fretZone: { min: number; max: number };
   promptDurationMs: number;        // e.g., 45000
   revealDurationMs: number;        // e.g., 4000

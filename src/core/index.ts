@@ -4,3 +4,6 @@ export * from './musicTheory';
 export * from './triadVoicings';
 export * from './cagedGeometry';
 export * from './fretboardProjector';
+export * from './stringNumbering';
+export * from './cagedChordShapes';
+export * from './pitch/tuner';

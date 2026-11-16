@@ -15,7 +15,8 @@ import {
   startChallenge,
   transitionToReveal,
 } from '../core/drills/drillEngine';
-import { generateTriadInversionChallenge } from '../core/drills/triadInversionGenerator';
+import { generateChallenge } from '../core/drills/generateChallenge';
+import { ALL_CAGED_SHAPES } from '../core/drills/cagedChordShapeGenerator';
 import { audioSynthAdapter } from '../adapters/audioSynth';
 import { wakeLockAdapter } from '../adapters/wakeLock';
 import { GUITAR_6_STANDARD } from '../core/constants';
@@ -155,6 +156,7 @@ export const DEFAULT_DRILL_CONFIG: DrillConfig = {
   },
   stringSets: [[1, 2, 3]],
   inversions: ['ROOT', 'FIRST', 'SECOND'],
+  cagedShapes: ALL_CAGED_SHAPES,
   fretZone: { min: 0, max: 22 },
   promptDurationMs: 45000,
   revealDurationMs: 4000,
@@ -361,7 +363,12 @@ export const usePracticeStore = create<PracticeStore>((set, get) => {
     startPractice: (customConfig) => {
       clearTimer();
       const config = { ...get().config, ...customConfig };
-      const firstChallenge = generateTriadInversionChallenge(config);
+      // Restarting mid-drill shouldn't re-ask the question that was just on screen either
+      const firstChallenge = generateChallenge(
+        config,
+        GUITAR_6_STANDARD,
+        get().engine.currentChallenge
+      );
       const newEngine = startChallenge(firstChallenge, config.promptDurationMs);
 
       set({
@@ -441,7 +448,7 @@ export const usePracticeStore = create<PracticeStore>((set, get) => {
         missed: isRight ? engine.stats.missed : engine.stats.missed + 1,
       };
 
-      const nextChallenge = generateTriadInversionChallenge(config);
+      const nextChallenge = generateChallenge(config, GUITAR_6_STANDARD, engine.currentChallenge);
       const newEngine = startChallenge(
         nextChallenge,
         config.promptDurationMs,
@@ -571,7 +578,12 @@ export const usePracticeStore = create<PracticeStore>((set, get) => {
         return;
       }
 
-      const nextHeard = appendHeardNote(heardNotes, midi, config.exerciseType);
+      const nextHeard = appendHeardNote(
+        heardNotes,
+        midi,
+        config.exerciseType,
+        challenge.validVoicings[0]?.length
+      );
       const userSelections = mapHeardNotesToPositions(
         nextHeard,
         challenge.validVoicings,

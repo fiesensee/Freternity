@@ -3,6 +3,7 @@ import { usePracticeStore } from '../../store/usePracticeStore';
 import { GuitarInputPanel, midiToLabel } from './GuitarInputPanel';
 import { positionToMidi } from '../../core/drills/heardNoteMapper';
 import { GUITAR_6_STANDARD } from '../../core/constants';
+import { toDisplayStringNumber } from '../../core/stringNumbering';
 
 export interface PracticeHudProps {
   onOpenSettings?: () => void;
@@ -88,6 +89,11 @@ export const PracticeHud: FC<PracticeHudProps> = ({ onOpenSettings }) => {
   const progressRatio =
     totalDurationMs > 0 ? Math.max(0, timeRemainingMs / totalDurationMs) : 0;
   const secondsLeft = (timeRemainingMs / 1000).toFixed(1);
+
+  const notesToPlace =
+    config.exerciseType === 'TRIAD_ALL_INVERSIONS'
+      ? 9
+      : currentChallenge.validVoicings[0]?.length ?? 3;
 
   const accuracyPercent =
     stats.total > 0 ? Math.round((stats.passed / stats.total) * 100) : 0;
@@ -222,8 +228,7 @@ export const PracticeHud: FC<PracticeHudProps> = ({ onOpenSettings }) => {
               </span>
             ) : (
               <span className="text-sky-400 font-mono font-medium">
-                🎸 Click fretboard to place notes ({userSelections.length}/
-                {config.exerciseType === 'TRIAD_ALL_INVERSIONS' ? '9' : '3'} placed)
+                🎸 Click fretboard to place notes ({userSelections.length}/{notesToPlace} placed)
               </span>
             )}
             {userSelections.length > 0 && (
@@ -265,7 +270,13 @@ export const PracticeHud: FC<PracticeHudProps> = ({ onOpenSettings }) => {
                         {note.noteName}
                       </span>
                       <span className="text-[11px] font-mono text-slate-400 font-medium">
-                        ({note.interval})
+                        ({note.interval}
+                        {note.scaleDegree && (
+                          <span title="Degree in the key" className="text-slate-500">
+                            {' '}· {note.scaleDegree}
+                          </span>
+                        )}
+                        )
                       </span>
                     </div>
                   ))}
@@ -278,7 +289,7 @@ export const PracticeHud: FC<PracticeHudProps> = ({ onOpenSettings }) => {
                     {currentChallenge.voicingNotes.map((vn, idx) => (
                       <span key={vn.stringIndex} className="flex items-center gap-1">
                         {idx > 0 && <span className="text-slate-600">→</span>}
-                        <span className="text-slate-400 text-[11px]">S{vn.stringIndex}:</span>
+                        <span className="text-slate-400 text-[11px]">S{toDisplayStringNumber(vn.stringIndex)}:</span>
                         <strong className="text-white font-bold">{vn.noteName}</strong>
                         <span className="text-[10px] text-slate-400">({vn.interval})</span>
                       </span>
@@ -296,6 +307,8 @@ export const PracticeHud: FC<PracticeHudProps> = ({ onOpenSettings }) => {
                     <span>🎉</span>
                     {config.exerciseType === 'TRIAD_ALL_INVERSIONS'
                       ? 'Perfect! You found all 3 inversions!'
+                      : config.exerciseType === 'CAGED_CHORD_SHAPE'
+                      ? `Perfect! That’s the ${currentChallenge.cagedShape} shape!`
                       : 'Perfect! You found the exact triad voicing!'}
                   </span>
                 ) : (
@@ -496,7 +509,7 @@ const HudMenu: FC<{ onOpenSettings?: () => void }> = ({ onOpenSettings }) => {
             )}
             {switchRow(
               'Play the solution',
-              'Plays the triad when the solution is shown',
+              'Plays the chord when the solution is shown',
               config.playSolutionAudioOnReveal,
               toggleSolutionAudio
             )}

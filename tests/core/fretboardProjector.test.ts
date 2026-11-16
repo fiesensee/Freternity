@@ -241,4 +241,39 @@ describe('fretboardProjector', () => {
     const blindMatrix = projectFretboard({ ...baseState, labelMode: 'BLIND_COLOR' });
     expect(blindMatrix[0][1].displayLabel).toBe('');
   });
+
+  it('outlines the CAGED chord shape when the box is built on the chord root', () => {
+    // A minor chord, G shape: 5-3-2-2-5-5 (low E → high E), again an octave up
+    const state: FretboardViewState = {
+      instrumentId: 'guitar_6_standard',
+      labelMode: 'CHORD_INTERVAL',
+      scaleLayer: { enabled: true, rootPitchClass: 7, preferFlats: false, scaleId: 'ionian' },
+      targetLayer: { enabled: true, rootPitchClass: 9, chordId: 'min' },
+      filterMask: {
+        activeStrings: [1, 2, 3, 4, 5, 6],
+        fretRange: { min: 0, max: 22 },
+        cagedOverlay: { enabled: true, shape: 'G', referenceRoot: 'TARGET_ROOT' },
+      },
+    };
+    const lit = (s: FretboardViewState) =>
+      projectFretboard(s, GUITAR_6_STANDARD)
+        .flat()
+        .filter((n) => n.isActiveChordShape)
+        .map((n) => `${n.position.stringIndex}:${n.position.fret}`)
+        .sort();
+
+    expect(lit(state)).toEqual(
+      ['6:5', '5:3', '4:2', '3:2', '2:5', '1:5', '6:17', '5:15', '4:14', '3:14', '2:17', '1:17'].sort()
+    );
+
+    // Box on the scale root, or no chord: nothing to outline
+    const onScaleRoot = {
+      ...state,
+      filterMask: { ...state.filterMask, cagedOverlay: { ...state.filterMask.cagedOverlay!, referenceRoot: 'SCALE_ROOT' as const } },
+    };
+    expect(lit(onScaleRoot)).toEqual([]);
+    expect(lit({ ...state, targetLayer: { ...state.targetLayer, enabled: false } })).toEqual([]);
+    // Diminished chords have no CAGED shape
+    expect(lit({ ...state, targetLayer: { ...state.targetLayer, chordId: 'dim' } })).toEqual([]);
+  });
 });

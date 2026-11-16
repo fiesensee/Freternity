@@ -1,14 +1,16 @@
 import { type FC } from 'react';
 import { useFretboardStore } from '../../store/useFretboardStore';
 import { Popover } from './Popover';
+import { toDisplayStringNumber } from '../../core/stringNumbering';
 
+// Low E → high E. `num` is the internal index (1 = high E), shown via display numbering.
 const STRINGS: readonly { num: number; note: string }[] = [
-  { num: 1, note: 'E' },
-  { num: 2, note: 'B' },
-  { num: 3, note: 'G' },
-  { num: 4, note: 'D' },
-  { num: 5, note: 'A' },
   { num: 6, note: 'E' },
+  { num: 5, note: 'A' },
+  { num: 4, note: 'D' },
+  { num: 3, note: 'G' },
+  { num: 2, note: 'B' },
+  { num: 1, note: 'E' },
 ];
 
 const ZOOM_PRESETS: readonly { label: string; window?: { minFret: number; maxFret: number } }[] = [
@@ -80,12 +82,12 @@ export const ViewMenu: FC = () => {
                   type="button"
                   onClick={() => toggleString(num)}
                   aria-pressed={activeStrings.includes(num)}
-                  title={`String ${num} (${note})`}
+                  title={`String ${toDisplayStringNumber(num)} (${note})`}
                   className={`py-1 text-xs font-mono font-bold flex flex-col items-center ${optionClass(
                     activeStrings.includes(num)
                   )}`}
                 >
-                  <span>{num}</span>
+                  <span>{toDisplayStringNumber(num)}</span>
                   <span className="text-[10px] opacity-70">{note}</span>
                 </button>
               ))}

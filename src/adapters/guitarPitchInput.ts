@@ -1,5 +1,12 @@
 import { FretPosition, MidiNote } from '../core/models';
-import { computeRms, detectPitchYin, frequencyToMidiFloat } from '../core/pitch/yinPitchDetector';
+import {
+  ANALYSIS_FRAME_SIZE,
+  analysisDecimation,
+  computeRms,
+  detectPitchYin,
+  downsampleByAveraging,
+  frequencyToMidiFloat,
+} from '../core/pitch/yinPitchDetector';
 import { NoteTracker } from '../core/pitch/noteTracker';
 
 export type PracticeInputEvent =
@@ -26,6 +33,8 @@ export interface InputMonitorSnapshot {
   midiNote: MidiNote | null;
   /** Deviation from nearest semitone in cents (-50..50) */
   cents: number;
+  /** Unrounded detected pitch (for the tuner), or null */
+  frequencyHz: number | null;
 }
 
 export interface AudioInputDevice {
@@ -77,12 +86,23 @@ export class GuitarPitchInputAdapter implements PracticeInputAdapter {
   private source: MediaStreamAudioSourceNode | null = null;
   private timerId: ReturnType<typeof setInterval> | null = null;
   private frame: Float32Array<ArrayBuffer> | null = null;
+  /** `frame` downsampled to ~48 kHz, which is what the detector analyses */
+  private analysisFrame = new Float32Array(ANALYSIS_FRAME_SIZE);
+  private decimation = 1;
   private tracker = new NoteTracker();
+  /** In-flight start(), so overlapping callers share one mic stream instead of opening two */
+  private starting: Promise<void> | null = null;
   private mutedUntil = 0;
 
   private deviceId: string | undefined;
   private sensitivity: number;
-  private monitor: InputMonitorSnapshot = { level: 0, gateOpen: false, midiNote: null, cents: 0 };
+  private monitor: InputMonitorSnapshot = {
+    level: 0,
+    gateOpen: false,
+    midiNote: null,
+    cents: 0,
+    frequencyHz: null,
+  };
 
   constructor() {
     const prefs = typeof window !== 'undefined' ? readPrefs() : {};
@@ -98,8 +118,17 @@ export class GuitarPitchInputAdapter implements PracticeInputAdapter {
     return this.timerId !== null;
   }
 
-  public async start(): Promise<void> {
-    if (this.isRunning) return;
+  public start(): Promise<void> {
+    if (this.isRunning) return Promise.resolve();
+    if (!this.starting) {
+      this.starting = this.open().finally(() => {
+        this.starting = null;
+      });
+    }
+    return this.starting;
+  }
+
+  private async open(): Promise<void> {
     if (!GuitarPitchInputAdapter.isSupported()) {
       throw new Error('Audio input is not supported in this browser.');
     }
@@ -121,7 +150,7 @@ export class GuitarPitchInputAdapter implements PracticeInputAdapter {
       if (this.deviceId && err instanceof DOMException && err.name === 'OverconstrainedError') {
         this.deviceId = undefined;
         writePrefs({ deviceId: undefined });
-        return this.start();
+        return this.open();
       }
       throw err;
     }
@@ -132,7 +161,9 @@ export class GuitarPitchInputAdapter implements PracticeInputAdapter {
 
     this.source = this.ctx.createMediaStreamSource(this.stream);
     this.analyser = this.ctx.createAnalyser();
-    this.analyser.fftSize = 2048;
+    // Same ~43 ms window at any sample rate (96 kHz interfaces need 4096 samples for it)
+    this.decimation = analysisDecimation(this.ctx.sampleRate);
+    this.analyser.fftSize = ANALYSIS_FRAME_SIZE * this.decimation;
     this.analyser.smoothingTimeConstant = 0;
     this.source.connect(this.analyser);
     this.frame = new Float32Array(this.analyser.fftSize);
@@ -153,7 +184,7 @@ export class GuitarPitchInputAdapter implements PracticeInputAdapter {
     this.analyser = null;
     this.stream = null;
     this.ctx = null;
-    this.monitor = { level: 0, gateOpen: false, midiNote: null, cents: 0 };
+    this.monitor = { level: 0, gateOpen: false, midiNote: null, cents: 0, frequencyHz: null };
   }
 
   public onEvent(callback: (event: PracticeInputEvent) => void): () => void {
@@ -207,10 +238,13 @@ export class GuitarPitchInputAdapter implements PracticeInputAdapter {
   private analyse(): void {
     if (!this.analyser || !this.frame || !this.ctx) return;
     this.analyser.getFloatTimeDomainData(this.frame);
+    const frame = downsampleByAveraging(this.frame, this.decimation, this.analysisFrame);
 
-    const rms = computeRms(this.frame);
+    const rms = computeRms(frame);
     const gateOpen = rms >= sensitivityToGate(this.sensitivity);
-    const estimate = gateOpen ? detectPitchYin(this.frame, this.ctx.sampleRate) : null;
+    const estimate = gateOpen
+      ? detectPitchYin(frame, this.ctx.sampleRate / this.decimation)
+      : null;
 
     let midiNote: MidiNote | null = null;
     let cents = 0;
@@ -219,7 +253,13 @@ export class GuitarPitchInputAdapter implements PracticeInputAdapter {
       midiNote = Math.round(midiFloat);
       cents = Math.round((midiFloat - midiNote) * 100);
     }
-    this.monitor = { level: Math.min(1, rms * 8), gateOpen, midiNote, cents };
+    this.monitor = {
+      level: Math.min(1, rms * 8),
+      gateOpen,
+      midiNote,
+      cents,
+      frequencyHz: estimate?.frequencyHz ?? null,
+    };
 
     const onset = this.tracker.push({
       frequencyHz: estimate?.frequencyHz ?? null,

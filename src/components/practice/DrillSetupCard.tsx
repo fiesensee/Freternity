@@ -45,7 +45,7 @@ export const DrillSetupCard: FC = () => {
   return (
     <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-2xl max-w-3xl mx-auto w-full flex flex-col gap-6">
       <div>
-        <h2 className="text-xl sm:text-2xl font-black text-white">Triad Practice</h2>
+        <h2 className="text-xl sm:text-2xl font-black text-white">Chord Practice</h2>
         <p className="text-sm text-slate-400 mt-1">
           You get a chord, you find it on the neck. Pick a drill and a key and go.
         </p>
