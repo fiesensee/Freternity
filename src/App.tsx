@@ -15,6 +15,7 @@ import {
   TuningForkIcon,
   ViewMenu,
 } from './components/controls';
+import { RhythmLab } from './components/rhythm/RhythmLab';
 import {
   DrillConfigModal,
   DrillSetupCard,
@@ -38,7 +39,7 @@ export const App: FC = () => {
   const inputMode = usePracticeStore((s) => s.inputMode);
   const setInputMode = usePracticeStore((s) => s.setInputMode);
 
-  const [activeTab, setActiveTab] = useState<'explore' | 'practice'>('explore');
+  const [activeTab, setActiveTab] = useState<'explore' | 'practice' | 'rhythm'>('explore');
   const [isConfigOpen, setIsConfigOpen] = useState(false);
   const [copiedUrl, setCopiedUrl] = useState(false);
   const [isTunerOpen, setIsTunerOpen] = useState(false);
@@ -53,6 +54,13 @@ export const App: FC = () => {
     // Don't keep the microphone open outside of practice
     setInputMode('POINTER');
     setActiveTab('explore');
+  };
+
+  const handleSwitchToRhythm = () => {
+    if (isPracticing) stopPractice();
+    // The lab opens its own input; don't keep the drill's open at the same time
+    setInputMode('POINTER');
+    setActiveTab('rhythm');
   };
 
   // If practicing, project the practice board state; otherwise explore state
@@ -164,6 +172,16 @@ export const App: FC = () => {
                 <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
               )}
             </button>
+            <button
+              onClick={handleSwitchToRhythm}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${
+                activeTab === 'rhythm' && !isPracticing
+                  ? 'bg-amber-600 text-white shadow-sm'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              Rhythm Lab
+            </button>
           </div>
 
           <div className="flex items-center gap-2">
@@ -209,6 +227,8 @@ export const App: FC = () => {
         {activeTab === 'practice' && !isPracticing && (
           <DrillSetupCard />
         )}
+
+        {activeTab === 'rhythm' && !isPracticing && <RhythmLab />}
 
         {/* Practice Mode HUD (active during running drill) */}
         {isPracticing && (
