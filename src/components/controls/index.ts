@@ -4,3 +4,4 @@ export * from './Popover';
 export * from './SentenceBar';
 export * from './ViewMenu';
 export * from './TunerBar';
+export * from './CalibrationPanel';
