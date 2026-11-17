@@ -1,5 +1,21 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useFretboardStore } from '../../src/store/useFretboardStore';
+
+// ---------------------------------------------------------------------------
+// localStorage mock (vitest environment is 'node')
+// ---------------------------------------------------------------------------
+
+const store = new Map<string, string>();
+const mockStorage = {
+  getItem: vi.fn((key: string) => store.get(key) ?? null),
+  setItem: vi.fn((key: string, value: string) => { store.set(key, value); }),
+  removeItem: vi.fn((key: string) => { store.delete(key); }),
+  clear: vi.fn(() => { store.clear(); }),
+  get length() { return store.size; },
+  key: vi.fn((i: number) => [...store.keys()][i] ?? null),
+};
+
+vi.stubGlobal('localStorage', mockStorage);
 
 describe('useFretboardStore', () => {
   beforeEach(() => {
@@ -131,5 +147,55 @@ describe('useFretboardStore', () => {
     expect(targetLayer.enabled).toBe(false);
     expect(filterMask.activeStrings).toEqual([1, 2, 3, 4, 5, 6]);
     expect(filterMask.cagedOverlay?.enabled).toBe(false);
+  });
+});
+
+describe('useFretboardStore persisted explore config', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    useFretboardStore.getState().resetToDefaults();
+  });
+
+  it('persists state to localStorage when a setting changes', () => {
+    useFretboardStore.getState().setLabelMode('SCALE_DEGREE');
+    const raw = localStorage.getItem('freternity.exploreConfig.v1');
+    expect(raw).not.toBeNull();
+    const parsed = JSON.parse(raw!);
+    expect(parsed.labelMode).toBe('SCALE_DEGREE');
+  });
+
+  it('persists CAGED overlay changes to localStorage', () => {
+    useFretboardStore.getState().setCagedShape('A');
+    const raw = localStorage.getItem('freternity.exploreConfig.v1');
+    expect(raw).not.toBeNull();
+    const parsed = JSON.parse(raw!);
+    expect(parsed.filterMask.cagedOverlay.shape).toBe('A');
+    expect(parsed.filterMask.cagedOverlay.enabled).toBe(true);
+  });
+
+  it('persists scale root changes to localStorage', () => {
+    useFretboardStore.getState().setBaseScaleRoot(7);
+    const raw = localStorage.getItem('freternity.exploreConfig.v1');
+    expect(raw).not.toBeNull();
+    const parsed = JSON.parse(raw!);
+    expect(parsed.scaleLayer.rootPitchClass).toBe(7);
+  });
+
+  it('persists reset to defaults to localStorage', () => {
+    useFretboardStore.getState().setLabelMode('BLIND_COLOR');
+    useFretboardStore.getState().resetToDefaults();
+    const raw = localStorage.getItem('freternity.exploreConfig.v1');
+    expect(raw).not.toBeNull();
+    const parsed = JSON.parse(raw!);
+    expect(parsed.labelMode).toBe('NOTE_NAME');
+    expect(parsed.scaleLayer.rootPitchClass).toBe(0);
+  });
+
+  it('persists string set changes to localStorage', () => {
+    useFretboardStore.getState().setActiveStrings([1, 2, 3]);
+    const raw = localStorage.getItem('freternity.exploreConfig.v1');
+    expect(raw).not.toBeNull();
+    const parsed = JSON.parse(raw!);
+    expect(parsed.filterMask.activeStrings).toEqual([1, 2, 3]);
   });
 });

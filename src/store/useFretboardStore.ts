@@ -11,6 +11,7 @@ import {
 import { SCALE_MAP } from '../core/constants';
 import { getDiatonicTriads, getParentMajorRoot, getRelativeMode } from '../core/musicTheory';
 import { loadStateFromUrl, syncStateToUrl } from '../adapters/urlStateSync';
+import { hasExploreParams, loadExploreConfig, saveExploreConfig } from '../adapters/explorePrefs';
 
 /** First visit: plain C major across the whole neck, no chord or CAGED shape on top. */
 export const DEFAULT_FRETBOARD_STATE: FretboardViewState = {
@@ -65,13 +66,18 @@ export interface FretboardStore {
 }
 
 export const useFretboardStore = create<FretboardStore>((set, get) => {
-  // Initialize from URL search parameters if available
-  const initialState = loadStateFromUrl(DEFAULT_FRETBOARD_STATE);
+  // Initialize: URL wins over localStorage, localStorage wins over defaults
+  const urlParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : new URLSearchParams();
+  const hasUrl = hasExploreParams(urlParams);
+  const initialState = hasUrl
+    ? loadStateFromUrl(DEFAULT_FRETBOARD_STATE)
+    : loadExploreConfig(DEFAULT_FRETBOARD_STATE);
 
   const updateStateAndSyncUrl = (updater: (prev: FretboardViewState) => FretboardViewState) => {
     set((state) => {
       const next = updater(state.viewState);
       syncStateToUrl(next);
+      saveExploreConfig(next);
       return { viewState: next };
     });
   };
@@ -248,6 +254,7 @@ export const useFretboardStore = create<FretboardStore>((set, get) => {
     resetToDefaults: () => {
       set({ viewState: DEFAULT_FRETBOARD_STATE, viewWindow: undefined });
       syncStateToUrl(DEFAULT_FRETBOARD_STATE);
+      saveExploreConfig(DEFAULT_FRETBOARD_STATE);
     },
   };
 });
