@@ -28,6 +28,7 @@ import {
 } from '../core/drills/heardNoteMapper';
 import { getAscendingInversionSequence } from '../core/triadVoicings';
 import { guitarPitchInput } from '../adapters/guitarPitchInput';
+import { loadPracticeConfig, savePracticeConfig } from '../adapters/practicePrefs';
 import { RhythmSession } from '../adapters/rhythm/rhythmSession';
 import { getClickVolume, getRhythmLatency, setClickVolume } from '../adapters/rhythm/rhythmPrefs';
 import { RhythmGrid, TimingGrade, gradeOffset, gridInterval } from '../core/rhythm/rhythmMath';
@@ -258,7 +259,7 @@ export const DEFAULT_DRILL_CONFIG: DrillConfig = {
   inversions: ['ROOT', 'FIRST', 'SECOND'],
   cagedShapes: ALL_CAGED_SHAPES,
   rhythm: { bpm: 70, subdivision: 2 },
-  fretZone: { min: 0, max: 22 },
+  fretZone: { min: 0, max: 24 },
   promptDurationMs: 45000,
   revealDurationMs: 4000,
   autoAdvance: true,
@@ -592,7 +593,7 @@ export const usePracticeStore = create<PracticeStore>((set, get) => {
   };
 
   return {
-    config: DEFAULT_DRILL_CONFIG,
+    config: loadPracticeConfig(DEFAULT_DRILL_CONFIG),
     engine: INITIAL_DRILL_ENGINE_STATE,
     previousPhase: 'PROMPTING',
     userSelections: [],
@@ -609,6 +610,7 @@ export const usePracticeStore = create<PracticeStore>((set, get) => {
     startPractice: (customConfig) => {
       clearTimer();
       const config = { ...get().config, ...customConfig };
+      savePracticeConfig(config);
       // Restarting mid-drill shouldn't re-ask the question that was just on screen either
       const firstChallenge = generateChallenge(
         config,
@@ -726,7 +728,11 @@ export const usePracticeStore = create<PracticeStore>((set, get) => {
     },
 
     updateConfig: (patch) => {
-      set((state) => ({ config: { ...state.config, ...patch } }));
+      set((state) => {
+        const next = { ...state.config, ...patch };
+        savePracticeConfig(next);
+        return { config: next };
+      });
     },
 
     toggleDroneAudio: () => {

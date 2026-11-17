@@ -1,11 +1,28 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  DEFAULT_DRILL_CONFIG,
   evaluateVoicingSelection,
   usePracticeStore,
 } from '../../src/store/usePracticeStore';
 import { FretPosition } from '../../src/core/models';
 import { audioSynthAdapter } from '../../src/adapters/audioSynth';
 import { GUITAR_6_STANDARD } from '../../src/core/constants';
+
+// ---------------------------------------------------------------------------
+// localStorage mock (vitest environment is 'node')
+// ---------------------------------------------------------------------------
+
+const store = new Map<string, string>();
+const mockStorage = {
+  getItem: vi.fn((key: string) => store.get(key) ?? null),
+  setItem: vi.fn((key: string, value: string) => { store.set(key, value); }),
+  removeItem: vi.fn((key: string) => { store.delete(key); }),
+  clear: vi.fn(() => { store.clear(); }),
+  get length() { return store.size; },
+  key: vi.fn((i: number) => [...store.keys()][i] ?? null),
+};
+
+vi.stubGlobal('localStorage', mockStorage);
 
 describe('usePracticeStore interactive selections & evaluation', () => {
   beforeEach(() => {
@@ -349,5 +366,50 @@ describe('usePracticeStore all inversions with guitar input (sequential, nut →
     expect(evaluation.missedPositions).toEqual(
       expect.arrayContaining([...seq[1].positions, ...seq[2].positions])
     );
+  });
+});
+
+describe('usePracticeStore persisted config', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    usePracticeStore.getState().stopPractice();
+    // Reset config to defaults so tests don't interfere with each other
+    usePracticeStore.getState().updateConfig(DEFAULT_DRILL_CONFIG);
+  });
+
+  it('defaults to DEFAULT_DRILL_CONFIG when nothing is stored', () => {
+    // loadPracticeConfig is already tested in practicePrefs.test.ts;
+    // here we verify the store's config after reset has the correct defaults.
+    const config = usePracticeStore.getState().config;
+    expect(config.fretZone).toEqual({ min: 0, max: 24 });
+    expect(config.exerciseType).toBe('TRIAD_INVERSION_HUNTER');
+  });
+
+  it('persists config when updateConfig is called', () => {
+    usePracticeStore.getState().updateConfig({ autoAdvance: false, playDrone: false });
+    const raw = localStorage.getItem('freternity.practiceConfig.v1');
+    expect(raw).not.toBeNull();
+    const parsed = JSON.parse(raw!);
+    expect(parsed.autoAdvance).toBe(false);
+    expect(parsed.playDrone).toBe(false);
+  });
+
+  it('persists config changes via updateConfig with a nested patch', () => {
+    usePracticeStore.getState().updateConfig({
+      scaleContext: { ...usePracticeStore.getState().config.scaleContext, rootPitchClass: 2, scaleId: 'dorian' },
+    });
+    const raw = localStorage.getItem('freternity.practiceConfig.v1');
+    expect(raw).not.toBeNull();
+    const parsed = JSON.parse(raw!);
+    expect(parsed.scaleContext.rootPitchClass).toBe(2);
+    expect(parsed.scaleContext.scaleId).toBe('dorian');
+  });
+
+  it('persists via startPractice', () => {
+    usePracticeStore.getState().startPractice({ exerciseType: 'CAGED_CHORD_SHAPE' });
+    const raw = localStorage.getItem('freternity.practiceConfig.v1');
+    expect(raw).not.toBeNull();
+    const parsed = JSON.parse(raw!);
+    expect(parsed.exerciseType).toBe('CAGED_CHORD_SHAPE');
   });
 });
