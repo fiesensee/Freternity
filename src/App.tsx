@@ -5,7 +5,7 @@ import type { ComparisonStatus } from './components/fretboard/FretNode';
 import { GUITAR_6_STANDARD } from './core/constants';
 import { projectFretboard } from './core/fretboardProjector';
 import { ComputedFretNode } from './core/models';
-import { ChordShapeStrip, FretboardLegend, type LegendContext } from './components/fretboard';
+import { FretboardLegend, type LegendContext } from './components/fretboard';
 import { FretboardSvg } from './components/fretboard';
 import { audioSynthAdapter } from './adapters/audioSynth';
 import { APP_VERSION } from './version';
@@ -309,7 +309,6 @@ export const App: FC = () => {
               }
             />
 
-            {!isPracticing && <ChordShapeStrip viewState={effectiveViewState} />}
 
             <FretboardLegend context={legendContext} />
           </div>
