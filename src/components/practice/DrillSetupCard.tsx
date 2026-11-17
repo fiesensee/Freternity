@@ -1,8 +1,6 @@
 import { useState, type FC } from 'react';
 import { usePracticeStore } from '../../store/usePracticeStore';
-import { GuitarInputPanel, InputDeviceControls } from './GuitarInputPanel';
-import { guitarPitchInput } from '../../adapters/guitarPitchInput';
-import { getRhythmLatency } from '../../adapters/rhythm/rhythmPrefs';
+import { GuitarInputStatusLine } from './GuitarInputPanel';
 import {
   DrillOptions,
   DrillTypePicker,
@@ -28,36 +26,6 @@ function readCustomizeOpen(): boolean {
  * Quick start: the three choices that matter (drill, key, input) and a Start button.
  * Everything else has sensible defaults and sits behind a one-line summary.
  */
-/** Scale-in-time listens to the guitar itself: which input, and is its timing calibrated? */
-const RhythmInputNotice: FC<{ onOpenTuner?: () => void }> = ({ onOpenTuner }) => {
-  const latency = getRhythmLatency(guitarPitchInput.getDeviceId());
-  return (
-    <section className="flex flex-col gap-2">
-      <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-300">Your guitar</h3>
-      <p className="text-[11px] text-slate-400 leading-relaxed">
-        Listens through your mic or interface. Pick single notes; headphones keep the click out of the
-        mic.
-      </p>
-      <InputDeviceControls active compact />
-      <p className="text-[11px] text-slate-400">
-        {latency !== null ? (
-          <>
-            Timing calibrated for this input: <strong className="text-slate-200 font-mono">{latency} ms</strong>{' '}
-            is subtracted.{' '}
-          </>
-        ) : (
-          <span className="text-amber-300/90">This input isn't calibrated yet, so timings include your system's delay. </span>
-        )}
-        {onOpenTuner && (
-          <button onClick={onOpenTuner} className="text-sky-400 hover:text-sky-300 underline cursor-pointer">
-            {latency !== null ? 'Recalibrate' : 'Calibrate'}
-          </button>
-        )}
-      </p>
-    </section>
-  );
-};
-
 export const DrillSetupCard: FC<{ onOpenTuner?: () => void }> = ({ onOpenTuner }) => {
   const config = usePracticeStore((s) => s.config);
   const startPractice = usePracticeStore((s) => s.startPractice);
@@ -97,10 +65,18 @@ export const DrillSetupCard: FC<{ onOpenTuner?: () => void }> = ({ onOpenTuner }
           <SettingsSection title="Time to find it">
             <ThinkTimePicker />
           </SettingsSection>
-          <GuitarInputPanel />
+          <SettingsSection title="Answer with" hint="how you respond during the drill">
+            <GuitarInputStatusLine onOpenTuner={onOpenTuner} />
+          </SettingsSection>
         </>
       ) : (
-        <RhythmInputNotice onOpenTuner={onOpenTuner} />
+        <SettingsSection title="Your guitar" hint="input device & timing calibration">
+          <p className="text-[11px] text-slate-400 leading-relaxed">
+            Listens through your mic or interface. Pick single notes; headphones keep the click out of the
+            mic.
+          </p>
+          <GuitarInputStatusLine onOpenTuner={onOpenTuner} />
+        </SettingsSection>
       )}
 
       <button

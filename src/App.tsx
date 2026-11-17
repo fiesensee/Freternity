@@ -184,7 +184,7 @@ export const App: FC = () => {
             <button
               onClick={() => setIsTunerOpen((open) => !open)}
               aria-expanded={isTunerOpen}
-              title="Tuner & guitar input"
+              title="Guitar & audio settings"
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition cursor-pointer ${
                 isTunerOpen
                   ? 'bg-emerald-600/20 text-emerald-300 border-emerald-500/50'
@@ -192,7 +192,7 @@ export const App: FC = () => {
               }`}
             >
               <TuningForkIcon />
-              <span>Tune</span>
+              <span>Guitar & Audio</span>
             </button>
 
             {/* Share / Copy URL Button */}

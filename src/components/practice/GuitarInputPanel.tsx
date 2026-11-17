@@ -1,12 +1,11 @@
 import { useEffect, useState, type FC } from 'react';
 import { usePracticeStore } from '../../store/usePracticeStore';
 import {
-  GuitarPitchInputAdapter,
   guitarPitchInput,
-  type AudioInputDevice,
   type InputMonitorSnapshot,
 } from '../../adapters/guitarPitchInput';
 import { CHROMATIC_SHARPS, midiToOctave, midiToPitchClass } from '../../core/musicTheory';
+import { getRhythmLatency } from '../../adapters/rhythm/rhythmPrefs';
 
 const MONITOR_REFRESH_MS = 60;
 
@@ -26,81 +25,17 @@ function useInputMonitor(active: boolean): InputMonitorSnapshot | null {
   return snapshot;
 }
 
-/**
- * Which input to listen to and how sensitive the noise gate is. `active` = the mic is open
- * (device names are only readable after permission was granted).
- */
-export const InputDeviceControls: FC<{ active: boolean; compact?: boolean }> = ({
-  active,
-  compact = false,
-}) => {
-  const [devices, setDevices] = useState<AudioInputDevice[]>([]);
-  const [deviceId, setDeviceId] = useState(guitarPitchInput.getDeviceId() ?? '');
-  const [sensitivity, setSensitivity] = useState(guitarPitchInput.getSensitivity());
-
-  useEffect(() => {
-    if (!active) return;
-    guitarPitchInput.listInputDevices().then(setDevices).catch(() => setDevices([]));
-  }, [active]);
-
-  const changeDevice = (id: string) => {
-    setDeviceId(id);
-    guitarPitchInput.setDevice(id).catch(() => {});
-  };
-
-  const changeSensitivity = (value: number) => {
-    setSensitivity(value);
-    guitarPitchInput.setSensitivity(value);
-  };
-
-  return (
-    <div className={`flex flex-wrap items-center ${compact ? 'gap-x-4 gap-y-2' : 'gap-4'}`}>
-      <label
-        className="flex items-center gap-2 text-[11px] text-slate-400"
-        title="Raise it if plucked notes aren't picked up, lower it if notes appear while you're not playing"
-      >
-        Sensitivity
-        <input
-          type="range"
-          min={1}
-          max={10}
-          step={1}
-          value={sensitivity}
-          onChange={(e) => changeSensitivity(Number(e.target.value))}
-          className="w-24 accent-sky-500"
-        />
-      </label>
-
-      {devices.length > 1 && (
-        <label className="flex items-center gap-2 text-[11px] text-slate-400">
-          Input
-          <select
-            value={deviceId}
-            onChange={(e) => changeDevice(e.target.value)}
-            className="bg-slate-900 border border-slate-700 rounded-md px-2 py-1 text-xs text-slate-200 max-w-[14rem]"
-          >
-            <option value="">System default</option>
-            {devices.map((d) => (
-              <option key={d.deviceId} value={d.deviceId}>
-                {d.label}
-              </option>
-            ))}
-          </select>
-        </label>
-      )}
-    </div>
-  );
-};
-
 export interface GuitarInputPanelProps {
-  /**
-   * full: setup screen section · toggle: just the input switch (drill menu) ·
-   * status: just the level meter / errors while a drill runs
-   */
-  variant?: 'full' | 'toggle' | 'status';
+  /** Just the level meter / errors while a drill runs */
+  variant?: 'status';
+  // No other variants — all configuration moved to GuitarAudioPanel
 }
 
-export const GuitarInputPanel: FC<GuitarInputPanelProps> = ({ variant = 'full' }) => {
+/**
+ * Minimal guitar input display: the level meter, note name, and error line shown during
+ * a running drill. All configuration happens in the GuitarAudioPanel (TunerBar).
+ */
+export const GuitarInputPanel: FC<GuitarInputPanelProps> = () => {
   const inputMode = usePracticeStore((s) => s.inputMode);
   const status = usePracticeStore((s) => s.guitarInputStatus);
   const error = usePracticeStore((s) => s.guitarInputError);
@@ -108,28 +43,6 @@ export const GuitarInputPanel: FC<GuitarInputPanelProps> = ({ variant = 'full' }
 
   const isListening = status === 'LISTENING';
   const monitor = useInputMonitor(isListening);
-  const supported = GuitarPitchInputAdapter.isSupported();
-
-  const modeButton = (mode: 'POINTER' | 'GUITAR', label: string) => (
-    <button
-      onClick={() => setInputMode(mode)}
-      disabled={mode === 'GUITAR' && !supported}
-      className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
-        inputMode === mode
-          ? 'bg-sky-600 text-white shadow-sm'
-          : 'text-slate-400 hover:text-white'
-      }`}
-    >
-      {label}
-    </button>
-  );
-
-  const toggle = (
-    <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-xl border border-slate-800 w-fit">
-      {modeButton('POINTER', '🖱 Click Fretboard')}
-      {modeButton('GUITAR', '🎤 Play My Guitar')}
-    </div>
-  );
 
   const meter = (
     <div className="flex items-center gap-3">
@@ -175,71 +88,48 @@ export const GuitarInputPanel: FC<GuitarInputPanelProps> = ({ variant = 'full' }
       </span>
     ) : null;
 
-  if (variant === 'toggle') {
-    return (
-      <div className="flex flex-col gap-2">
-        {toggle}
-        {statusLine}
-      </div>
-    );
-  }
+  if (inputMode !== 'GUITAR') return null;
+  return (
+    <div className="flex flex-wrap items-center gap-3">
+      {isListening && meter}
+      {statusLine}
+    </div>
+  );
+};
 
-  if (variant === 'status') {
-    if (inputMode !== 'GUITAR') return null;
-    return (
-      <div className="flex flex-wrap items-center gap-3">
-        {isListening && meter}
-        {statusLine}
-      </div>
-    );
-  }
+/**
+ * One-line summary of guitar input status for drill setup / HUD, with a link to the
+ * full GuitarAudioPanel.
+ */
+export const GuitarInputStatusLine: FC<{ onOpenTuner?: () => void }> = ({ onOpenTuner }) => {
+  const inputMode = usePracticeStore((s) => s.inputMode);
+  const status = usePracticeStore((s) => s.guitarInputStatus);
+  const deviceId = guitarPitchInput.getDeviceId();
+  const latency = getRhythmLatency(deviceId);
+
+  const deviceLabel = deviceId ? 'custom input' : 'default input';
+
+  if (!onOpenTuner) return null;
 
   return (
-    <section className="flex flex-col gap-2">
-      <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-300">Answer with</h3>
-      {toggle}
-
-      {!supported && (
-        <p className="text-xs text-slate-400">
-          This browser doesn’t support audio input. Use a recent Chrome, Edge, Firefox or Safari.
-        </p>
-      )}
-
-      {inputMode === 'GUITAR' && (
-        <div className="flex flex-col gap-3">
-          {statusLine}
-
-          {isListening && (
-            <>
-              <div className="flex flex-wrap items-center gap-4">
-                {meter}
-                <InputDeviceControls active={isListening} />
-              </div>
-            </>
+    <p className="text-[11px] text-slate-400 leading-relaxed">
+      {inputMode === 'GUITAR' ? (
+        <>
+          Guitar: {deviceLabel}
+          {latency !== null ? (
+            <> · calibrated <strong className="text-slate-200 font-mono">{latency} ms</strong></>
+          ) : (
+            <span className="text-amber-300/90"> · not calibrated (timings include system delay)</span>
           )}
-
-          <ul className="text-[11px] text-slate-400 leading-relaxed list-disc pl-4">
-            <li>
-              Pick the triad <strong className="text-slate-200">one note at a time</strong>, so each note
-              is detected. Strummed chords aren’t recognised.
-            </li>
-            <li>
-              All Inversions Sprint: play the three shapes{' '}
-              <strong className="text-slate-200">in order from the nut up towards the 12th fret</strong>.
-              Each note is checked against the shape that comes next.
-            </li>
-            <li>
-              Exact pitches are checked, octave included, so the right shape in the wrong place counts
-              as wrong. The solution is revealed as soon as you’ve played it correctly.
-            </li>
-            <li>
-              Pluck a string: the meter should turn green and show the note. If it doesn’t, raise the
-              sensitivity. If notes show up while you’re not playing, lower it.
-            </li>
-            <li>The drone stays muted while listening so the mic doesn’t pick it up.</li>
-          </ul>
-        </div>
+          {status === 'ERROR' && <span className="text-rose-300"> · input error</span>}
+        </>
+      ) : (
+        'Answer by clicking the fretboard'
       )}
-    </section>
+      {' · '}
+      <button onClick={onOpenTuner} className="text-sky-400 hover:text-sky-300 underline cursor-pointer">
+        Open guitar & audio settings
+      </button>
+    </p>
   );
 };
