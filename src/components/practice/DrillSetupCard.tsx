@@ -29,7 +29,7 @@ function readCustomizeOpen(): boolean {
  * Everything else has sensible defaults and sits behind a one-line summary.
  */
 /** Scale-in-time listens to the guitar itself: which input, and is its timing calibrated? */
-const RhythmInputNotice: FC<{ onOpenRhythmLab?: () => void }> = ({ onOpenRhythmLab }) => {
+const RhythmInputNotice: FC<{ onOpenTuner?: () => void }> = ({ onOpenTuner }) => {
   const latency = getRhythmLatency(guitarPitchInput.getDeviceId());
   return (
     <section className="flex flex-col gap-2">
@@ -46,11 +46,11 @@ const RhythmInputNotice: FC<{ onOpenRhythmLab?: () => void }> = ({ onOpenRhythmL
             is subtracted.{' '}
           </>
         ) : (
-          <span className="text-amber-300/90">This input isn’t calibrated yet, so timings include your system’s delay. </span>
+          <span className="text-amber-300/90">This input isn't calibrated yet, so timings include your system's delay. </span>
         )}
-        {onOpenRhythmLab && (
-          <button onClick={onOpenRhythmLab} className="text-sky-400 hover:text-sky-300 underline cursor-pointer">
-            {latency !== null ? 'Recalibrate' : 'Calibrate'} in the Rhythm Lab
+        {onOpenTuner && (
+          <button onClick={onOpenTuner} className="text-sky-400 hover:text-sky-300 underline cursor-pointer">
+            {latency !== null ? 'Recalibrate' : 'Calibrate'}
           </button>
         )}
       </p>
@@ -58,7 +58,7 @@ const RhythmInputNotice: FC<{ onOpenRhythmLab?: () => void }> = ({ onOpenRhythmL
   );
 };
 
-export const DrillSetupCard: FC<{ onOpenRhythmLab?: () => void }> = ({ onOpenRhythmLab }) => {
+export const DrillSetupCard: FC<{ onOpenTuner?: () => void }> = ({ onOpenTuner }) => {
   const config = usePracticeStore((s) => s.config);
   const startPractice = usePracticeStore((s) => s.startPractice);
   const [isCustomizeOpen, setIsCustomizeOpen] = useState(readCustomizeOpen);
@@ -100,7 +100,7 @@ export const DrillSetupCard: FC<{ onOpenRhythmLab?: () => void }> = ({ onOpenRhy
           <GuitarInputPanel />
         </>
       ) : (
-        <RhythmInputNotice onOpenRhythmLab={onOpenRhythmLab} />
+        <RhythmInputNotice onOpenTuner={onOpenTuner} />
       )}
 
       <button

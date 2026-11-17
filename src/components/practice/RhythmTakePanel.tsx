@@ -8,7 +8,7 @@ const fmtMs = (ms: number) => `${ms > 0 ? '+' : ''}${Math.round(ms)} ms`;
 const noteLabel = (midi: number) => `${CHROMATIC_SHARPS[midiToPitchClass(midi)]}${midiToOctave(midi)}`;
 
 /** Live take status (count-in, beat, progress) and, once it's over, the results. */
-export const RhythmTakePanel: FC<{ onOpenRhythmLab?: () => void }> = ({ onOpenRhythmLab }) => {
+export const RhythmTakePanel: FC<{ onOpenTuner?: () => void }> = ({ onOpenTuner }) => {
   const phase = usePracticeStore((s) => s.engine.phase);
   const spec = usePracticeStore((s) => s.engine.currentChallenge?.rhythm);
   const take = usePracticeStore((s) => s.rhythmTake);
@@ -22,10 +22,10 @@ export const RhythmTakePanel: FC<{ onOpenRhythmLab?: () => void }> = ({ onOpenRh
 
   const uncalibrated = !take.calibrated && (
     <p className="text-[11px] text-amber-300/90">
-      This input isn’t calibrated, so timings include your system’s delay.{' '}
-      {onOpenRhythmLab && (
-        <button onClick={onOpenRhythmLab} className="underline hover:text-amber-200 cursor-pointer">
-          Calibrate in the Rhythm Lab
+      This input isn't calibrated, so timings include your system's delay.{' '}
+      {onOpenTuner && (
+        <button onClick={onOpenTuner} className="underline hover:text-amber-200 cursor-pointer">
+          Calibrate
         </button>
       )}
     </p>
@@ -60,7 +60,7 @@ export const RhythmTakePanel: FC<{ onOpenRhythmLab?: () => void }> = ({ onOpenRh
           />
           <Tile
             label="Within ±50 ms"
-            value={timing ? `${Math.round(timing.within50 * 100)}%` : '—'}
+            value={timing ? `${Math.round(timing.within50 * 100)}%` : '-'}
             sub={`need ${Math.round(PASS_WITHIN_50 * 100)}%`}
             status={(timing?.within50 ?? 0) >= PASS_WITHIN_50 ? 'pass' : 'fail'}
           />
@@ -71,11 +71,11 @@ export const RhythmTakePanel: FC<{ onOpenRhythmLab?: () => void }> = ({ onOpenRh
           <Tile
             compact
             label="On average"
-            value={timing ? fmtMs(timing.meanMs) : '—'}
+            value={timing ? fmtMs(timing.meanMs) : '-'}
             sub={timing ? (Math.abs(timing.meanMs) < 5 ? 'centred' : timing.meanMs < 0 ? 'rushing' : 'dragging') : undefined}
           />
-          <Tile compact label="Spread" value={timing ? `±${Math.round(timing.spreadMs)} ms` : '—'} />
-          <Tile compact label="Within ±25 ms" value={timing ? `${Math.round(timing.within25 * 100)}%` : '—'} />
+          <Tile compact label="Spread" value={timing ? `±${Math.round(timing.spreadMs)} ms` : '-'} />
+          <Tile compact label="Within ±25 ms" value={timing ? `${Math.round(timing.within25 * 100)}%` : '-'} />
         </div>
 
         <OutcomeStrip outcomes={result.outcomes} expectedMidis={spec.expected.map((e) => e.midi)} />
@@ -104,7 +104,7 @@ export const RhythmTakePanel: FC<{ onOpenRhythmLab?: () => void }> = ({ onOpenRh
   }
 
   if (take.status === 'OPENING_MIC') {
-    return <p className="mt-3 text-xs font-mono text-amber-300">Waiting for the microphone…</p>;
+    return <p className="mt-3 text-xs font-mono text-amber-300">Waiting for the microphone...</p>;
   }
 
   const isCountIn = beat !== null && beat.slot < 0;
@@ -132,7 +132,7 @@ export const RhythmTakePanel: FC<{ onOpenRhythmLab?: () => void }> = ({ onOpenRh
           {phase === 'PAUSED'
             ? 'paused (resume starts the take over)'
             : isCountIn || beat === null
-            ? `count-in… ${beat ? spec.countInBeats + Math.floor(beat.slot / spec.subdivision) + 1 : ''}`
+            ? `count-in... ${beat ? spec.countInBeats + Math.floor(beat.slot / spec.subdivision) + 1 : ''}`
             : `note ${Math.min(cursor + 1, spec.expected.length)} of ${spec.expected.length}`}
         </span>
       </div>

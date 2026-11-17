@@ -9,10 +9,10 @@ import { getClickVolume } from '../../adapters/rhythm/rhythmPrefs';
 
 export interface PracticeHudProps {
   onOpenSettings?: () => void;
-  onOpenRhythmLab?: () => void;
+  onOpenTuner?: () => void;
 }
 
-export const PracticeHud: FC<PracticeHudProps> = ({ onOpenSettings, onOpenRhythmLab }) => {
+export const PracticeHud: FC<PracticeHudProps> = ({ onOpenSettings, onOpenTuner }) => {
   const engine = usePracticeStore((s) => s.engine);
   const config = usePracticeStore((s) => s.config);
   const stopPractice = usePracticeStore((s) => s.stopPractice);
@@ -178,7 +178,7 @@ export const PracticeHud: FC<PracticeHudProps> = ({ onOpenSettings, onOpenRhythm
           {currentChallenge.subPrompt}
         </p>
 
-        {isRhythm && <RhythmTakePanel onOpenRhythmLab={onOpenRhythmLab} />}
+        {isRhythm && <RhythmTakePanel onOpenTuner={onOpenTuner} />}
 
         {/* Guitar input, all inversions: shapes must be played in order up the neck */}
         {!isRhythm &&
