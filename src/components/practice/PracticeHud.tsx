@@ -149,7 +149,7 @@ export const PracticeHud: FC<PracticeHudProps> = ({ onOpenSettings, onOpenTuner 
             <span className="text-rose-400 font-bold">✕ {stats.missed}</span>
             {stats.total > 0 && <span className="text-slate-400">{accuracyPercent}%</span>}
           </span>
-          <HudMenu onOpenSettings={onOpenSettings} isRhythm={isRhythm} />
+          <HudMenu onOpenSettings={onOpenSettings} onOpenTuner={onOpenTuner} isRhythm={isRhythm} />
         </div>
       </div>
 
@@ -442,8 +442,9 @@ export const PracticeHud: FC<PracticeHudProps> = ({ onOpenSettings, onOpenTuner 
 };
 
 /** Secondary drill controls, kept out of the way of the prompt. */
-const HudMenu: FC<{ onOpenSettings?: () => void; isRhythm: boolean }> = ({
+const HudMenu: FC<{ onOpenSettings?: () => void; onOpenTuner?: () => void; isRhythm: boolean }> = ({
   onOpenSettings,
+  onOpenTuner,
   isRhythm,
 }) => {
   const setRhythmClickVolume = usePracticeStore((s) => s.setRhythmClickVolume);
@@ -553,7 +554,17 @@ const HudMenu: FC<{ onOpenSettings?: () => void; isRhythm: boolean }> = ({
 
               <div className="border-t border-slate-800 pt-3">
                 <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-2">Answer with</div>
-                <GuitarInputPanel variant="toggle" />
+                <p className="text-[11px] text-slate-400 leading-relaxed">
+                  Answer by{' '}
+                  {inputMode === 'GUITAR' ? 'playing your guitar' : 'clicking the fretboard'}
+                  {' · '}
+                  <span
+                    onClick={onOpenTuner}
+                    className="text-sky-400 hover:text-sky-300 underline cursor-pointer"
+                  >
+                    Open guitar & audio settings
+                  </span>
+                </p>
               </div>
             </>
           )}

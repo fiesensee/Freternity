@@ -5,12 +5,7 @@ import { IN_TUNE_CENTS, readTuning, smoothFrequency, type TuningReading } from '
 import { GUITAR_6_STANDARD } from '../../core/constants';
 import { CHROMATIC_SHARPS, midiToOctave, midiToPitchClass } from '../../core/musicTheory';
 import { toDisplayStringNumber } from '../../core/stringNumbering';
-import { GuitarInputPanel, InputDeviceControls } from '../practice/GuitarInputPanel';
-import { CalibrationPanel } from './CalibrationPanel';
-import {
-  getRhythmLatency,
-  setRhythmLatency,
-} from '../../adapters/rhythm/rhythmPrefs';
+import { GuitarAudioPanel } from './GuitarAudioPanel';
 
 const REFRESH_MS = 50;
 /** Pitch estimates the needle is smoothed over (~250 ms) */
@@ -46,14 +41,10 @@ export const TuningForkIcon: FC<{ className?: string }> = ({ className = 'w-3.5 
 );
 
 /**
- * Chromatic tuner strip. Uses the same input as the practice guitar mode: it starts the mic
+ * Chromatic tuner strip with integrated guitar & audio settings panel.
+ * Uses the same input as the practice guitar mode: it starts the mic
  * if nothing else is using it, and only stops it again if the practice drill doesn't need it.
  */
-/** Latency correction for the input currently selected (0 = not calibrated) */
-const currentLatency = () => getRhythmLatency(guitarPitchInput.getDeviceId()) ?? 0;
-const saveLatency = (ms: number) =>
-  setRhythmLatency(guitarPitchInput.getDeviceId(), ms === 0 ? null : ms);
-
 export const TunerBar: FC<{ onClose: () => void }> = ({ onClose }) => {
   const [status, setStatus] = useState<MicStatus>('STARTING');
   const [reading, setReading] = useState<TuningReading | null>(null);
@@ -61,8 +52,6 @@ export const TunerBar: FC<{ onClose: () => void }> = ({ onClose }) => {
   const recent = useRef<number[]>([]);
   const lastHeardAt = useRef(0);
   const isRestarting = useRef(false);
-  const [latencyMs, setLatencyMs] = useState(currentLatency);
-  const [showCalibration, setShowCalibration] = useState(false);
 
   // Mic lifecycle
   useEffect(() => {
@@ -228,53 +217,10 @@ export const TunerBar: FC<{ onClose: () => void }> = ({ onClose }) => {
           </button>
         </div>
 
-        {/* Guitar input settings: which input, how sensitive, and whether drills listen to it */}
-        <div className="flex flex-wrap items-center gap-x-5 gap-y-2 pt-2.5 border-t border-slate-800/80">
-          <div className="flex items-center gap-2">
-            <span className="text-[11px] text-slate-400">Answer drills by</span>
-            <GuitarInputPanel variant="toggle" />
-          </div>
-          <InputDeviceControls active={status === 'LISTENING'} compact />
+        {/* Guitar & audio settings panel — single source of truth */}
+        <div className="pt-2.5 border-t border-slate-800/80">
+          <GuitarAudioPanel />
         </div>
-
-        {/* Latency calibration toggle */}
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 pt-1">
-          <button
-            onClick={() => setShowCalibration((v) => !v)}
-            aria-expanded={showCalibration}
-            className={`text-[11px] font-medium transition cursor-pointer ${
-              showCalibration
-                ? 'text-sky-400'
-                : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            {showCalibration ? '▾ Hide calibration' : '▸ Latency calibration'}
-            {!showCalibration && latencyMs > 0 && (
-              <span className="text-slate-500 ml-1">({latencyMs} ms)</span>
-            )}
-          </button>
-          {latencyMs > 0 && !showCalibration && (
-            <button
-              onClick={() => {
-                setLatencyMs(0);
-                saveLatency(0);
-              }}
-              className="text-[11px] text-slate-500 hover:text-slate-300 underline cursor-pointer"
-            >
-              reset
-            </button>
-          )}
-        </div>
-
-        {showCalibration && (
-          <CalibrationPanel
-            latencyMs={latencyMs}
-            onLatencyChange={(ms) => {
-              setLatencyMs(ms);
-              saveLatency(ms);
-            }}
-          />
-        )}
       </div>
     </div>
   );
