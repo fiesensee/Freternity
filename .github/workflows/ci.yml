@@ -1,0 +1,120 @@
+name: CI — Test, Release & Deploy
+
+on:
+  push:
+    branches:
+      - '**'
+  pull_request:
+    branches:
+      - main
+
+# Allow one concurrent deployment to Pages
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  # ── Job 1: Run tests & verify build ─────────────────────────────────────────
+  test:
+    name: Test & Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run unit tests
+        run: npm test
+
+      - name: Verify TypeScript & bundle build
+        run: npm run build
+
+  # ── Job 2: Semantic-release bump & tag (push to main only) ─────────────────
+  release:
+    name: SemVer Bump & GitHub Release
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout repository with full history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Configure Git author
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+
+      - name: Calculate and bump SemVer version
+        id: bump
+        run: node scripts/release.mjs --bump=auto
+
+      - name: Build production bundle with new version
+        run: npm run build
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: './dist'
+
+      - name: Commit version bump, tag, and create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ steps.bump.outputs.tag }}"
+          NEXT_VER="${{ steps.bump.outputs.next_version }}"
+
+          git add package.json
+          git commit -m "chore(release): bump version to ${NEXT_VER} [skip ci]"
+          git tag -a "${TAG}" -m "Release ${TAG}"
+          git push origin main --follow-tags
+
+          # Create GitHub Release with auto-generated changelog
+          gh release create "${TAG}" \
+            --title "Freternity ${TAG}" \
+            --generate-notes
+
+  # ── Job 3: Deploy to GitHub Pages (push to main only) ─────────────────────
+  deploy:
+    name: Deploy to GitHub Pages
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    needs: release
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    permissions:
+      pages: write
+      id-token: write
+      contents: read
+    steps:
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
