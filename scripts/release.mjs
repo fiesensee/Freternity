@@ -3,6 +3,13 @@ import path from 'node:path';
 import { execSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
+// ── helpers ──────────────────────────────────────────────────────────────────
+
+/** Append text to a file (sync). Node.js has no appendFileSync before v22. */
+function appendFileSync(file, text) {
+  fs.writeFileSync(file, text, { flag: 'a' });
+}
+
 export function calculateNextVersion(
   currentVersion,
   bumpType,
@@ -100,9 +107,9 @@ if (isDirectExecution) {
   }
 
   if (process.env.GITHUB_OUTPUT) {
-    fs.appendFileSync(process.env.GITHUB_OUTPUT, `current_version=${currentVersion}\n`);
-    fs.appendFileSync(process.env.GITHUB_OUTPUT, `next_version=${nextVersion}\n`);
-    fs.appendFileSync(process.env.GITHUB_OUTPUT, `bump_type=${bumpType}\n`);
-    fs.appendFileSync(process.env.GITHUB_OUTPUT, `tag=v${nextVersion}\n`);
+    appendFileSync(process.env.GITHUB_OUTPUT, `current_version=${currentVersion}\n`);
+    appendFileSync(process.env.GITHUB_OUTPUT, `next_version=${nextVersion}\n`);
+    appendFileSync(process.env.GITHUB_OUTPUT, `bump_type=${bumpType}\n`);
+    appendFileSync(process.env.GITHUB_OUTPUT, `tag=v${nextVersion}\n`);
   }
 }
