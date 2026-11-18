@@ -1,5 +1,5 @@
 import { useState, type FC } from 'react';
-import { usePracticeStore } from '../../store/usePracticeStore';
+import { usePracticeStore, type PracticeInputMode } from '../../store/usePracticeStore';
 import { GuitarInputStatusLine } from './GuitarInputPanel';
 import {
   DrillOptions,
@@ -66,11 +66,13 @@ export const DrillSetupCard: FC<{ onOpenTuner?: () => void }> = ({ onOpenTuner }
             <ThinkTimePicker />
           </SettingsSection>
           <SettingsSection title="Answer with" hint="how you respond during the drill">
+            <InputModeToggle />
             <GuitarInputStatusLine onOpenTuner={onOpenTuner} />
           </SettingsSection>
         </>
       ) : (
         <SettingsSection title="Your guitar" hint="input device & timing calibration">
+          <InputModeToggle />
           <p className="text-[11px] text-slate-400 leading-relaxed">
             Listens through your mic or interface. Pick single notes; headphones keep the click out of the
             mic.
@@ -105,6 +107,39 @@ export const DrillSetupCard: FC<{ onOpenTuner?: () => void }> = ({ onOpenTuner }
           </div>
         )}
       </div>
+    </div>
+  );
+};
+
+/** Small inline toggle: play guitar or click the fretboard. */
+const InputModeToggle: FC = () => {
+  const inputMode = usePracticeStore((s) => s.inputMode);
+  const setInputMode = usePracticeStore((s) => s.setInputMode);
+  const error = usePracticeStore((s) => s.guitarInputError);
+
+  const chip = (mode: PracticeInputMode, label: string) => (
+    <button
+      onClick={() => setInputMode(mode)}
+      aria-pressed={inputMode === mode}
+      className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition cursor-pointer whitespace-nowrap ${
+        inputMode === mode
+          ? 'bg-sky-600 text-white ring-1 ring-sky-400'
+          : 'bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-slate-200'
+      }`}
+    >
+      {label}
+    </button>
+  );
+
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      {chip('GUITAR', '🎸 Play guitar')}
+      {chip('POINTER', '🖱 Click fretboard')}
+      {error && inputMode === 'POINTER' && (
+        <span className="text-[11px] text-rose-300 font-mono">
+          {error.length > 50 ? error.slice(0, 50) + '…' : error}
+        </span>
+      )}
     </div>
   );
 };

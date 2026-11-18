@@ -37,6 +37,26 @@ import { PlayedNote, TakeScore, scoreTake, takeDurationMs } from '../core/rhythm
 export type PracticeInputMode = 'POINTER' | 'GUITAR';
 export type GuitarInputStatus = 'OFF' | 'STARTING' | 'LISTENING' | 'ERROR';
 
+const INPUT_MODE_KEY = 'freternity.practiceInputMode.v1';
+
+function loadInputMode(): PracticeInputMode {
+  try {
+    const raw = localStorage.getItem(INPUT_MODE_KEY);
+    if (raw === 'GUITAR' || raw === 'POINTER') return raw;
+  } catch {
+    // localStorage unavailable — use default
+  }
+  return 'GUITAR';
+}
+
+function saveInputMode(mode: PracticeInputMode): void {
+  try {
+    localStorage.setItem(INPUT_MODE_KEY, mode);
+  } catch {
+    // storage unavailable — per-viewer convenience only
+  }
+}
+
 /** Ignore the mic right after a new prompt so the previous reveal strum doesn't count. */
 const PROMPT_START_DEAF_MS = 600;
 
@@ -598,7 +618,7 @@ export const usePracticeStore = create<PracticeStore>((set, get) => {
     previousPhase: 'PROMPTING',
     userSelections: [],
     evaluation: null,
-    inputMode: 'POINTER',
+    inputMode: loadInputMode(),
     guitarInputStatus: 'OFF',
     guitarInputError: null,
     heardNotes: [],
@@ -800,6 +820,7 @@ export const usePracticeStore = create<PracticeStore>((set, get) => {
           liveEvaluation: null,
           inversionStep: 0,
         });
+        saveInputMode('POINTER');
         if (get().engine.phase === 'PROMPTING') startDroneForPrompt();
         return;
       }
@@ -817,6 +838,7 @@ export const usePracticeStore = create<PracticeStore>((set, get) => {
           if (event.type === 'PITCH_DETECTED') get().registerPlayedNote(event.midiNote);
         });
         set({ guitarInputStatus: 'LISTENING' });
+        saveInputMode('GUITAR');
       } catch (err) {
         const message =
           err instanceof DOMException && err.name === 'NotAllowedError'
@@ -826,7 +848,17 @@ export const usePracticeStore = create<PracticeStore>((set, get) => {
             : err instanceof Error
             ? err.message
             : 'Could not start audio input.';
-        set({ guitarInputStatus: 'ERROR', guitarInputError: message });
+        // Fall back to POINTER so the drill is usable; keep the error visible
+        set({
+          inputMode: 'POINTER',
+          guitarInputStatus: 'OFF',
+          guitarInputError: message,
+          heardNotes: [],
+          liveEvaluation: null,
+          inversionStep: 0,
+        });
+        saveInputMode('POINTER');
+        if (get().engine.phase === 'PROMPTING') startDroneForPrompt();
       }
     },
 

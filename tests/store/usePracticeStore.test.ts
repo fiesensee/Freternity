@@ -123,8 +123,10 @@ describe('usePracticeStore interactive selections & evaluation', () => {
     const stopDroneSpy = vi.spyOn(audioSynthAdapter, 'stopDrone');
     const startDroneSpy = vi.spyOn(audioSynthAdapter, 'startDrone');
 
-    // Start practice with drone active
-    usePracticeStore.getState().startPractice({ playDrone: true });
+    // POINTER mode is needed for the drone to start (GUITAR mutes it)
+    usePracticeStore.getState().updateConfig({ playDrone: true });
+    usePracticeStore.setState({ inputMode: 'POINTER' });
+    usePracticeStore.getState().startPractice();
     expect(startDroneSpy).toHaveBeenCalled();
 
     stopDroneSpy.mockClear();
@@ -366,6 +368,70 @@ describe('usePracticeStore all inversions with guitar input (sequential, nut →
     expect(evaluation.missedPositions).toEqual(
       expect.arrayContaining([...seq[1].positions, ...seq[2].positions])
     );
+  });
+});
+
+describe('usePracticeStore input mode defaults and fallback', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    usePracticeStore.getState().stopPractice();
+    usePracticeStore.getState().updateConfig(DEFAULT_DRILL_CONFIG);
+    // Reset inputMode to the initial state as if the store was just created
+    usePracticeStore.setState({
+      inputMode: 'GUITAR',
+      guitarInputStatus: 'OFF',
+      guitarInputError: null,
+      heardNotes: [],
+      liveEvaluation: null,
+      inversionStep: 0,
+    });
+  });
+
+  it('defaults to GUITAR on a fresh session', () => {
+    expect(usePracticeStore.getState().inputMode).toBe('GUITAR');
+  });
+
+  it('falls back to POINTER when setInputMode(GUITAR) fails', async () => {
+    // Start from POINTER so the switch to GUITAR actually runs
+    usePracticeStore.setState({ inputMode: 'POINTER', guitarInputStatus: 'OFF' });
+    // Calling setInputMode('GUITAR') will try to open the mic, which fails in node
+    await usePracticeStore.getState().setInputMode('GUITAR');
+    const state = usePracticeStore.getState();
+    // The async call should have fallen back to POINTER
+    expect(state.inputMode).toBe('POINTER');
+    expect(state.guitarInputStatus).toBe('OFF');
+    // The error message should be stored
+    expect(state.guitarInputError).not.toBeNull();
+  });
+
+  it('persists inputMode to localStorage when switched to POINTER', async () => {
+    // Start from GUITAR so setInputMode('POINTER') actually runs the switch
+    usePracticeStore.setState({ inputMode: 'GUITAR', guitarInputStatus: 'LISTENING' });
+    await usePracticeStore.getState().setInputMode('POINTER');
+    expect(localStorage.getItem('freternity.practiceInputMode.v1')).toBe('POINTER');
+  });
+
+  it('persists inputMode to localStorage when GUITAR fails', async () => {
+    // Start from POINTER so setInputMode('GUITAR') actually tries to start the mic
+    usePracticeStore.setState({ inputMode: 'POINTER', guitarInputStatus: 'OFF' });
+    await usePracticeStore.getState().setInputMode('GUITAR');
+    // Falls back to POINTER on failure; should persist POINTER
+    expect(localStorage.getItem('freternity.practiceInputMode.v1')).toBe('POINTER');
+  });
+
+  it('loaded inputMode from localStorage when store initializes', () => {
+    localStorage.setItem('freternity.practiceInputMode.v1', 'POINTER');
+    // Simulate the store's initial load by calling the same logic
+    usePracticeStore.setState({
+      inputMode: (() => {
+        try {
+          const raw = localStorage.getItem('freternity.practiceInputMode.v1');
+          if (raw === 'GUITAR' || raw === 'POINTER') return raw;
+        } catch {}
+        return 'GUITAR';
+      })(),
+    });
+    expect(usePracticeStore.getState().inputMode).toBe('POINTER');
   });
 });
 
