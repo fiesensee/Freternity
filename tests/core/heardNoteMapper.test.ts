@@ -72,4 +72,106 @@ describe('mapHeardNotesToPositions', () => {
     );
     expect(evaluateVoicingSelection(positions, [C_ROOT])?.isMatch).toBe(false);
   });
+
+  // --- CAGED chord shape: octave tolerance on low E string ---
+  //
+  // The CAGED G and E shapes use the low E string (index 6). The pitch detector sometimes
+  // reports the fundamental an octave off; the mapper should accept the low-E position via
+  // ±12 semitone tolerance.
+
+  // G-shape A minor at rootFret=5: 6:5(A2), 5:3(C3), 4:2(E3), 3:2(A3), 2:5(E4), 1:5(A4)
+  const A_MINOR_G_SHAPE: FretPosition[] = [
+    { stringIndex: 6, fret: 5 },
+    { stringIndex: 5, fret: 3 },
+    { stringIndex: 4, fret: 2 },
+    { stringIndex: 3, fret: 2 },
+    { stringIndex: 2, fret: 5 },
+    { stringIndex: 1, fret: 5 },
+  ];
+
+  it('CAGED: accepts a low-E chord tone detected an octave up (+12)', () => {
+    // User plays string 6 fret 5 (A2, MIDI 45) but detector reports A3 (MIDI 57).
+    // MIDI 57 also matches string 3 fret 2 in the same voicing; octave tolerance
+    // should ensure string 6 fret 5 also counts.
+    const heard = [57, 48, 52, 64, 69]; // root octave-up, others exact
+    const positions = mapHeardNotesToPositions(
+      heard, [A_MINOR_G_SHAPE], 'CAGED_CHORD_SHAPE',
+      [1, 2, 3, 4, 5, 6], zone, GUITAR_6_STANDARD
+    );
+    // String-6 position must be present
+    expect(positions).toEqual(
+      expect.arrayContaining([{ stringIndex: 6, fret: 5 }])
+    );
+    // String-3 position (same MIDI 57) also present because exact match still runs
+    expect(positions).toEqual(
+      expect.arrayContaining([{ stringIndex: 3, fret: 2 }])
+    );
+  });
+
+  it('CAGED: accepts a low-E chord tone detected an octave down (-12)', () => {
+    // User plays string 6 fret 17 (A3, MIDI 57) but detector reports A2 (MIDI 45).
+    // MIDI 45 matches string 6 fret 5 directly; octave tolerance should let
+    // string 6 fret 17 also match (45 + 12 = 57 → expected MIDI for fret 17).
+    //
+    // Build a voicing with low E at fret 17.
+    const gShapeHigh: FretPosition[] = A_MINOR_G_SHAPE.map((p) => ({ ...p, fret: p.fret + 12 }));
+    const heard = [45, 60, 64, 69, 76]; // root octave-down, others exact
+    const positions = mapHeardNotesToPositions(
+      heard, [gShapeHigh], 'CAGED_CHORD_SHAPE',
+      [1, 2, 3, 4, 5, 6], zone, GUITAR_6_STANDARD
+    );
+    expect(positions).toEqual(
+      expect.arrayContaining([{ stringIndex: 6, fret: 17 }])
+    );
+  });
+
+  it('CAGED: rejects a wrong note on the low E string', () => {
+    // User plays F on string 6 fret 1 (F2, MIDI 41) which is NOT a chord tone of A minor.
+    const heard = [41, 48, 52, 57, 64, 69];
+    const positions = mapHeardNotesToPositions(
+      heard, [A_MINOR_G_SHAPE], 'CAGED_CHORD_SHAPE',
+      [1, 2, 3, 4, 5, 6], zone, GUITAR_6_STANDARD
+    );
+    const result = evaluateVoicingSelection(positions, [A_MINOR_G_SHAPE]);
+    expect(result?.isMatch).toBe(false);
+    expect(result?.correctPositions).not.toEqual(
+      expect.arrayContaining([{ stringIndex: 6, fret: 1 }])
+    );
+  });
+
+  it('CAGED: shape rejection still works (neighbouring shape is not accepted)', () => {
+    // User plays E-shape A-minor notes (with low E an octave-up) against a
+    // G-shape voicing — must be rejected.
+    const heard = [57, 52, 57, 60, 64, 69];
+    const positions = mapHeardNotesToPositions(
+      heard, [A_MINOR_G_SHAPE], 'CAGED_CHORD_SHAPE',
+      [1, 2, 3, 4, 5, 6], zone, GUITAR_6_STANDARD
+    );
+    const result = evaluateVoicingSelection(positions, [A_MINOR_G_SHAPE]);
+    expect(result?.isMatch).toBe(false);
+  });
+
+  it('TRIAD_INVERSION_HUNTER: octave tolerance does NOT apply (non-CAGED drill unaffected)', () => {
+    // A note on the low E string detected an octave off should NOT get special
+    // treatment in the triad inversion drill — only CAGED_CHORD_SHAPE gets that.
+    // Use a voicing that includes string 6 so the octave-up midi would only match
+    // via tolerance if it were enabled.
+    const voicingWithLowE: FretPosition[] = [
+      ...C_ROOT,
+      // Also add the low-E string position at a different fret so the octave-up
+      // MIDI doesn't match it exactly either.
+      { stringIndex: 6, fret: 5 }, // A2 = MIDI 45
+    ];
+    // Play the root on string 6 (MIDI 45) but detector reports 57 (+12).
+    // In CAGED mode this would match via octave tolerance; in triad mode it shouldn't.
+    const heard = [57, 60, 64, 67];
+    const positions = mapHeardNotesToPositions(
+      heard, [voicingWithLowE], 'TRIAD_INVERSION_HUNTER',
+      [1, 2, 3, 4, 5, 6], zone, GUITAR_6_STANDARD
+    );
+    // String 6 fret 5 should NOT be in the result (no octave tolerance for non-CAGED)
+    expect(positions).not.toEqual(
+      expect.arrayContaining([{ stringIndex: 6, fret: 5 }])
+    );
+  });
 });
