@@ -140,16 +140,8 @@ describe('mapHeardNotesToPositions', () => {
   });
 
   it('CAGED: shape rejection still works (neighbouring shape is not accepted)', () => {
-    // E-shape A minor at rootFret=5: 6:5(A2), 5:7(E3), 4:7(A3), 3:5(C4), 2:5(E4), 1:5(A4)
-    const eShape: FretPosition[] = [
-      { stringIndex: 6, fret: 5 },
-      { stringIndex: 5, fret: 7 },
-      { stringIndex: 4, fret: 7 },
-      { stringIndex: 3, fret: 5 },
-      { stringIndex: 2, fret: 5 },
-      { stringIndex: 1, fret: 5 },
-    ];
-    // User plays E-shape notes (with low E an octave-up)
+    // User plays E-shape A-minor notes (with low E an octave-up) against a
+    // G-shape voicing — must be rejected.
     const heard = [57, 52, 57, 60, 64, 69];
     const positions = mapHeardNotesToPositions(
       heard, [A_MINOR_G_SHAPE], 'CAGED_CHORD_SHAPE',
