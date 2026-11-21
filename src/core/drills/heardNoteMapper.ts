@@ -61,6 +61,33 @@ export function mapHeardNotesToPositions(
 
   const result: FretPosition[] = [];
   const matchedMidis = new Set<MidiNote>();
+
+  // Phase 1 — Octave-tolerant low-E-string matching (CAGED chord shape drill only).
+  // The pitch detector sometimes reports the low E string an octave off. Handle that
+  // before the exact pass so the correct low-E position isn't "stolen" by another string
+  // that happens to match the heard (wrong-octave) MIDI note.
+  if (exerciseType === 'CAGED_CHORD_SHAPE') {
+    for (const voicing of creditableVoicings) {
+      for (const pos of voicing) {
+        if (pos.stringIndex !== 6 || result.some((r) => samePosition(r, pos))) continue;
+        const midi = positionToMidi(pos, instrument);
+        if (heardSet.has(midi)) {
+          result.push(pos);
+          matchedMidis.add(midi);
+        } else if (heardSet.has(midi + 12)) {
+          result.push(pos);
+          matchedMidis.add(midi + 12);
+        } else if (heardSet.has(midi - 12)) {
+          result.push(pos);
+          matchedMidis.add(midi - 12);
+        }
+      }
+    }
+  }
+
+  // Phase 2 — Exact matching for every position (all drills).  Same MIDI note may appear
+  // on multiple strings (e.g. the root at different octaves); each one is matched
+  // independently as long as the position isn't already in `result`.
   for (const voicing of creditableVoicings) {
     for (const pos of voicing) {
       const midi = positionToMidi(pos, instrument);
