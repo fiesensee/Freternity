@@ -399,6 +399,7 @@ export const usePracticeStore = create<PracticeStore>((set, get) => {
           ? err.message
           : 'Could not open the audio input.';
       const { engine } = get();
+      wakeLockAdapter.release().catch(() => {});
       set({
         rhythmTake: { ...get().rhythmTake!, status: 'ERROR', error: message },
         previousPhase: 'PROMPTING',
@@ -682,6 +683,7 @@ export const usePracticeStore = create<PracticeStore>((set, get) => {
       const rhythm = isRhythmChallenge(engine.currentChallenge);
       if (engine.phase === 'PAUSED') {
         set({ engine: resumeDrill(engine, previousPhase) });
+        wakeLockAdapter.request().catch(() => {});
         if (previousPhase === 'PROMPTING') {
           // A take can't continue mid-bar: start it over with a fresh count-in
           if (rhythm) void beginRhythmTake(engine.currentChallenge!);
@@ -692,6 +694,7 @@ export const usePracticeStore = create<PracticeStore>((set, get) => {
           audioSynthAdapter.stopDrone();
           if (rhythm) rhythmSession.stopMetronome();
         }
+        wakeLockAdapter.release().catch(() => {});
         set({
           previousPhase: engine.phase,
           engine: pauseDrill(engine),
