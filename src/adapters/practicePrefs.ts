@@ -3,6 +3,7 @@ import {
   DrillConfig,
   ExerciseType,
   RhythmSubdivision,
+  ScaleRhythmPattern,
   TriadInversion,
 } from '../core/models';
 import { DIATONIC_MODES } from '../core/constants';
@@ -37,6 +38,12 @@ const VALID_INVERSIONS: ReadonlySet<TriadInversion> = new Set<TriadInversion>([
 
 /** Set of valid rhythm subdivisions. */
 const VALID_SUBDIVISIONS: ReadonlySet<number> = new Set<number>([1, 2, 3, 4]);
+
+/** Set of valid scale-in-time note patterns. */
+const VALID_SCALE_PATTERNS: ReadonlySet<ScaleRhythmPattern> = new Set<ScaleRhythmPattern>([
+  'STRAIGHT',
+  'THIRDS',
+]);
 
 /** Clamp an integer to [min, max]. */
 function clamp(value: number, min: number, max: number): number {
@@ -104,6 +111,9 @@ function validateConfig(config: unknown, defaults: DrillConfig): DrillConfig {
       subdivision: VALID_SUBDIVISIONS.has(r.subdivision as number)
         ? (r.subdivision as RhythmSubdivision)
         : defaults.rhythm.subdivision,
+      pattern: VALID_SCALE_PATTERNS.has(r.pattern as ScaleRhythmPattern)
+        ? (r.pattern as ScaleRhythmPattern)
+        : defaults.rhythm.pattern,
     };
   })();
 

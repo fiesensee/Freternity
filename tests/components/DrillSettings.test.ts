@@ -40,9 +40,12 @@ describe('drill settings summary', () => {
     const rhythm = {
       ...DEFAULT_DRILL_CONFIG,
       exerciseType: 'SCALE_RHYTHM' as const,
-      rhythm: { bpm: 90, subdivision: 4 as const },
+      rhythm: { bpm: 90, subdivision: 4 as const, pattern: 'STRAIGHT' as const },
     };
     expect(summarizeDrillOptions(rhythm)).toEqual(['sixteenths at 90 bpm', 'all 5 positions', 'next after 4s']);
     expect(summarizeDrillOptions({ ...rhythm, cagedShapes: ['E'] })[1]).toBe('E position');
+    expect(
+      summarizeDrillOptions({ ...rhythm, rhythm: { ...rhythm.rhythm, pattern: 'THIRDS' } })
+    ).toEqual(['in thirds', 'sixteenths at 90 bpm', 'all 5 positions', 'next after 4s']);
   });
 });
