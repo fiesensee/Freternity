@@ -15,7 +15,7 @@ import {
 } from '../../core/musicTheory';
 import { formatStringSet } from '../../core/stringNumbering';
 import { ALL_CAGED_SHAPES } from '../../core/drills/cagedChordShapeGenerator';
-import { SUBDIVISION_NAMES } from '../../core/drills/scaleRhythmGenerator';
+import { SUBDIVISION_NAMES, SCALE_PATTERN_NAMES } from '../../core/drills/scaleRhythmGenerator';
 import { getClickVolume, setClickVolume } from '../../adapters/rhythm/rhythmPrefs';
 
 /**
@@ -113,7 +113,7 @@ const DRILL_TYPES: readonly {
   {
     id: 'SCALE_RHYTHM',
     title: 'Scale in time',
-    description: 'Play the key’s scale in one CAGED position, up and down, to a click. Notes and timing are scored. Needs your guitar.',
+    description: 'Play the key’s scale in one CAGED position, straight up and down or in thirds, to a click. Notes and timing are scored. Needs your guitar.',
   },
 ];
 
@@ -314,6 +314,19 @@ export const DrillOptions: FC = () => {
     <div className="flex flex-col gap-5">
       {isRhythmDrill && (
         <>
+          <SettingsSection title="Pattern">
+            <div className="flex flex-wrap items-center gap-2">
+              {(['STRAIGHT', 'THIRDS'] as const).map((pattern) => (
+                <Chip
+                  key={pattern}
+                  selected={config.rhythm.pattern === pattern}
+                  onClick={() => updateConfig({ rhythm: { ...config.rhythm, pattern } })}
+                >
+                  {SCALE_PATTERN_NAMES[pattern]}
+                </Chip>
+              ))}
+            </div>
+          </SettingsSection>
           <SettingsSection title={`Tempo · ${config.rhythm.bpm} bpm`}>
             <input
               type="range"
@@ -485,6 +498,7 @@ export function summarizeDrillOptions(config: DrillConfig): string[] {
       ? 'all 5 positions'
       : `${config.cagedShapes.join(', ')} ${config.cagedShapes.length === 1 ? 'position' : 'positions'}`;
     return [
+      ...(config.rhythm.pattern === 'THIRDS' ? ['in thirds'] : []),
       `${SUBDIVISION_NAMES[config.rhythm.subdivision]} at ${config.rhythm.bpm} bpm`,
       positions,
       after,

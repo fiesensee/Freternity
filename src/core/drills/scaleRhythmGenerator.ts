@@ -8,7 +8,7 @@ import {
   RhythmChallengeSpec,
 } from '../models';
 import { GUITAR_6_STANDARD, SCALE_MAP } from '../constants';
-import { getCagedScalePosition, ScalePosition } from '../scalePositions';
+import { getCagedScalePosition, buildScaleSequence, ScalePosition } from '../scalePositions';
 import { toDisplayStringNumber } from '../stringNumbering';
 import {
   CHROMATIC_FLATS,
@@ -27,6 +27,11 @@ export const SUBDIVISION_NAMES: Record<RhythmChallengeSpec['subdivision'], strin
   2: 'eighths',
   3: 'triplets',
   4: 'sixteenths',
+};
+
+export const SCALE_PATTERN_NAMES: Record<DrillConfig['rhythm']['pattern'], string> = {
+  STRAIGHT: 'Straight',
+  THIRDS: 'In thirds',
 };
 
 /**
@@ -55,9 +60,8 @@ export function generateScaleRhythmChallenge(
   if (!position) throw new Error('No playable scale position found');
 
   const up = position.notes;
-  const down = [...up].reverse().slice(1);
-  const expected = [...up, ...down].map((n, slot) => ({ ...n, slot }));
-  const { bpm, subdivision } = config.rhythm;
+  const expected = buildScaleSequence(up, config.rhythm.pattern).map((n, slot) => ({ ...n, slot }));
+  const { bpm, subdivision, pattern } = config.rhythm;
   const rhythm: RhythmChallengeSpec = { bpm, subdivision, countInBeats: RHYTHM_COUNT_IN_BEATS, expected };
 
   const keyName = `${resolveRootNoteName(root, isFlatKeySignature(root, preferFlats))} ${getScaleShortName(scaleDef)}`;
@@ -81,11 +85,11 @@ export function generateScaleRhythmChallenge(
   return {
     id: `challenge-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
     exerciseType: 'SCALE_RHYTHM',
-    questionKey: ['SCALE_RHYTHM', root, scaleDef.id, shape].join('|'),
+    questionKey: ['SCALE_RHYTHM', root, scaleDef.id, shape, pattern].join('|'),
     cagedShape: shape,
     rhythm,
     headlinePrompt: `${keyName} — ${shape} Shape`,
-    subPrompt: `Up and down in ${SUBDIVISION_NAMES[subdivision]} at ${bpm} bpm | Start on ${firstName} (string ${toDisplayStringNumber(first.stringIndex)}, fret ${first.fret}) | ${expected.length} notes`,
+    subPrompt: `${pattern === 'THIRDS' ? 'In thirds' : 'Up and down'} in ${SUBDIVISION_NAMES[subdivision]} at ${bpm} bpm | Start on ${firstName} (string ${toDisplayStringNumber(first.stringIndex)}, fret ${first.fret}) | ${expected.length} notes`,
     targetPitchClasses: scaleDef.semitones.map((s) => ((root + s) % 12) as PitchClass),
     solutionNotes: [],
     validVoicings: [],

@@ -278,7 +278,7 @@ export const DEFAULT_DRILL_CONFIG: DrillConfig = {
   stringSets: [[1, 2, 3]],
   inversions: ['ROOT', 'FIRST', 'SECOND'],
   cagedShapes: ALL_CAGED_SHAPES,
-  rhythm: { bpm: 70, subdivision: 2 },
+  rhythm: { bpm: 70, subdivision: 2, pattern: 'STRAIGHT' },
   fretZone: { min: 0, max: 24 },
   promptDurationMs: 45000,
   revealDurationMs: 4000,

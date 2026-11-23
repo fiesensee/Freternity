@@ -6,6 +6,7 @@ import {
   MidiNote,
   PitchClass,
   ScaleDefinition,
+  ScaleRhythmPattern,
 } from './models';
 import { CAGED_DEFINITIONS, FretWindow } from './cagedGeometry';
 import { getIntervalDegree, midiToPitchClass, semitoneDistance } from './musicTheory';
@@ -91,4 +92,26 @@ export function getCagedScalePosition(
     span: { min: Math.min(...frets), max: Math.max(...frets) },
     notes,
   };
+}
+
+/**
+ * The order to play a scale position in, including the turn-around and the way back down.
+ *
+ * STRAIGHT: every note up, then every note back down (the top note is not repeated).
+ * THIRDS: diatonic thirds up (1-3-2-4-3-5-...), then mirrored thirds back down
+ * (n, n-2, n-1, n-3, ...) to the lowest note, again without repeating the top note.
+ */
+export function buildScaleSequence(
+  notes: readonly ScalePositionNote[],
+  pattern: ScaleRhythmPattern
+): ScalePositionNote[] {
+  const up = [...notes];
+  if (pattern === 'THIRDS' && up.length >= 3) {
+    const ascending: ScalePositionNote[] = [];
+    for (let i = 0; i < up.length - 2; i++) {
+      ascending.push(up[i], up[i + 2]);
+    }
+    return [...ascending, ...ascending.slice(0, -1).reverse()];
+  }
+  return [...up, ...up.slice(0, -1).reverse()];
 }

@@ -210,6 +210,9 @@ export interface DrillChallenge {
 /** Notes per beat on the rhythm grid: quarters, eighths, triplets, sixteenths */
 export type RhythmSubdivision = 1 | 2 | 3 | 4;
 
+/** Scale-in-time note order: straight up and down, or through the scale in diatonic thirds */
+export type ScaleRhythmPattern = 'STRAIGHT' | 'THIRDS';
+
 export interface RhythmChallengeSpec {
   bpm: number;
   subdivision: RhythmSubdivision;
@@ -225,8 +228,8 @@ export interface DrillConfig {
   inversions: readonly TriadInversion[];
   /** CAGED chord-shape drill: shapes picked at random from these */
   cagedShapes: readonly CagedShapeId[];
-  /** Scale-in-time drill: tempo and grid */
-  rhythm: { bpm: number; subdivision: RhythmSubdivision };
+  /** Scale-in-time drill: tempo, grid and note order */
+  rhythm: { bpm: number; subdivision: RhythmSubdivision; pattern: ScaleRhythmPattern };
   fretZone: { min: number; max: number };
   promptDurationMs: number;        // e.g., 45000
   revealDurationMs: number;        // e.g., 4000

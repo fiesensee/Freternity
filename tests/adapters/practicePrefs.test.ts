@@ -49,7 +49,7 @@ describe('practicePrefs', () => {
       stringSets: [[2, 3, 4], [3, 4, 5]],
       inversions: ['ROOT', 'SECOND'],
       cagedShapes: ['C', 'A', 'G'],
-      rhythm: { bpm: 100, subdivision: 4 },
+      rhythm: { bpm: 100, subdivision: 4, pattern: 'THIRDS' },
       fretZone: { min: 3, max: 12 },
       promptDurationMs: 30000,
       revealDurationMs: 6000,
@@ -133,8 +133,24 @@ describe('practicePrefs', () => {
     expect(loaded.inversions).toEqual(DEFAULT_DRILL_CONFIG.inversions);
   });
 
+  it('replaces an unknown rhythm pattern with the default', () => {
+    const stored = makeConfig();
+    (stored.rhythm as { pattern: string }).pattern = 'FOURTHS';
+    localStorage.setItem('freternity.practiceConfig.v1', JSON.stringify(stored));
+    const loaded = loadPracticeConfig(DEFAULT_DRILL_CONFIG);
+    expect(loaded.rhythm.pattern).toBe(DEFAULT_DRILL_CONFIG.rhythm.pattern);
+  });
+
+  it('defaults a missing rhythm pattern to straight', () => {
+    const stored = makeConfig();
+    delete (stored.rhythm as { pattern?: string }).pattern;
+    localStorage.setItem('freternity.practiceConfig.v1', JSON.stringify(stored));
+    const loaded = loadPracticeConfig(DEFAULT_DRILL_CONFIG);
+    expect(loaded.rhythm.pattern).toBe('STRAIGHT');
+  });
+
   it('clamps extreme bpm values', () => {
-    const stored = makeConfig({ rhythm: { bpm: 9999, subdivision: 2 } });
+    const stored = makeConfig({ rhythm: { bpm: 9999, subdivision: 2, pattern: 'STRAIGHT' } });
     localStorage.setItem('freternity.practiceConfig.v1', JSON.stringify(stored));
     const loaded = loadPracticeConfig(DEFAULT_DRILL_CONFIG);
     expect(loaded.rhythm.bpm).toBe(300);

@@ -12,7 +12,7 @@ const challenge = generateScaleRhythmChallenge({
   exerciseType: 'SCALE_RHYTHM',
   scaleContext: { enabled: true, rootPitchClass: 7, preferFlats: false, scaleId: 'ionian' },
   cagedShapes: ['E'],
-  rhythm: { bpm: 120, subdivision: 2 },
+  rhythm: { bpm: 120, subdivision: 2, pattern: 'STRAIGHT' },
 });
 const expected = challenge.rhythm!.expected;
 const grid = { startTime: 0, bpm: 120, subdivision: 2 as const };

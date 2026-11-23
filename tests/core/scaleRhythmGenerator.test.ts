@@ -13,7 +13,7 @@ const gMajorE: DrillConfig = {
   exerciseType: 'SCALE_RHYTHM',
   scaleContext: { enabled: true, rootPitchClass: 7, preferFlats: false, scaleId: 'ionian' },
   cagedShapes: ['E'],
-  rhythm: { bpm: 80, subdivision: 2 },
+  rhythm: { bpm: 80, subdivision: 2, pattern: 'STRAIGHT' },
 };
 
 describe('scaleRhythmGenerator', () => {
@@ -27,6 +27,30 @@ describe('scaleRhythmGenerator', () => {
     expect(c.headlinePrompt).toBe('G Major — E Shape');
     expect(c.subPrompt).toContain('eighths at 80 bpm');
     expect(c.subPrompt).toContain('Start on F# (string 1, fret 2)');
+  });
+
+  it('plays the position in diatonic thirds and mirrors them back down', () => {
+    const straight = generateScaleRhythmChallenge(gMajorE);
+    const up = straight.rhythm!.expected.slice(0, 17);
+    const thirds = generateScaleRhythmChallenge({
+      ...gMajorE,
+      rhythm: { ...gMajorE.rhythm, pattern: 'THIRDS' },
+    });
+    const { expected } = thirds.rhythm!;
+
+    // 1-3-2-4-3-5... up, then the mirrored thirds back down (top note shared)
+    expect(expected).toHaveLength(2 * (17 - 2) * 2 - 1);
+    expect(expected.slice(0, 6).map((e) => e.midi)).toEqual(
+      [up[0], up[2], up[1], up[3], up[2], up[4]].map((e) => e.midi)
+    );
+    // Turn-around is the top note
+    expect(expected[29].midi).toBe(up[16].midi);
+    // n-2, n-1, n-3, n-2... back down to the lowest note
+    expect(expected.slice(30, 34).map((e) => e.midi)).toEqual(
+      [up[14], up[15], up[13], up[14]].map((e) => e.midi)
+    );
+    expect(expected[expected.length - 1].midi).toBe(up[0].midi);
+    expect(thirds.subPrompt).toContain('In thirds in eighths at 80 bpm');
   });
 
   it('shows the position the whole time: box on the scale root, scale degrees, outside ghosted', () => {
