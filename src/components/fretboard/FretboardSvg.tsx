@@ -28,6 +28,8 @@ export interface FretboardSvgProps {
     windows?: readonly FretWindow[];
   };
   userSelections?: readonly FretPosition[];
+  /** Used in Explore Scale Finder: shows the note name inside selected nodes instead of a dot */
+  selectedNoteLabel?: 'DOT' | 'NOTE_NAME';
   comparisonMap?: Readonly<Record<string, ComparisonStatus>>;
   isInteractivePractice?: boolean;
   onNodeClick?: (node: ComputedFretNode) => void;
@@ -40,6 +42,7 @@ export const FretboardSvg: FC<FretboardSvgProps> = ({
   viewWindow,
   cagedOverlay,
   userSelections,
+  selectedNoteLabel = 'DOT',
   comparisonMap,
   isInteractivePractice = false,
   onNodeClick,
@@ -289,6 +292,7 @@ export const FretboardSvg: FC<FretboardSvgProps> = ({
                 cy={cy}
                 radius={13.5}
                 isUserSelected={isUserSelected}
+                selectedNoteLabel={selectedNoteLabel}
                 comparisonStatus={comparisonStatus}
                 isClickablePracticeTarget={isClickablePracticeTarget}
                 onClick={onNodeClick}

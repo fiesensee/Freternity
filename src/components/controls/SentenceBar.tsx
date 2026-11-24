@@ -1,6 +1,6 @@
 import { useState, type FC, type ReactNode } from 'react';
 import { useFretboardStore } from '../../store/useFretboardStore';
-import { SCALE_MAP } from '../../core/constants';
+import { DIATONIC_MODES, EXTRA_SCALES, SCALE_MAP } from '../../core/constants';
 import {
   getChromaticNoteName,
   getDiatonicTriads,
@@ -114,6 +114,8 @@ const Option: FC<{
 
 export const SentenceBar: FC = () => {
   const viewState = useFretboardStore((s) => s.viewState);
+  const scaleFinderActive = useFretboardStore((s) => s.scaleFinderActive);
+  const toggleScaleFinder = useFretboardStore((s) => s.toggleScaleFinder);
   const { scaleLayer, targetLayer, filterMask } = viewState;
 
   const scaleDef = SCALE_MAP[scaleLayer.scaleId] ?? SCALE_MAP['ionian'];
@@ -129,6 +131,7 @@ export const SentenceBar: FC = () => {
 
   const scaleLabel = `${noteName(scaleLayer.rootPitchClass)} ${getScaleShortName(scaleDef)}`;
   const chordLabel = targetLayer.enabled && currentTriad ? currentTriad.label : 'nothing';
+  const hasDiatonicChords = triads.length > 0;
   const inversionLabel =
     INVERSIONS.find((i) => i.id === (targetLayer.activeInversion ?? undefined))?.label ?? 'All chord notes';
   const caged = filterMask.cagedOverlay;
@@ -146,26 +149,30 @@ export const SentenceBar: FC = () => {
         {() => <ScaleMenu />}
       </Popover>
 
-      <span className="text-slate-600">·</span>
-      <span>highlight</span>
-      <Popover
-        title="Highlight a chord"
-        label={<Pill>{chordLabel}</Pill>}
-        triggerClassName={`${pillClass} ${targetLayer.enabled ? toneClass.chord : toneClass.muted}`}
-        panelClassName="w-80"
-      >
-        {(close) => <ChordMenu triads={triads} scaleLabel={scaleLabel} onDone={close} />}
-      </Popover>
+      {hasDiatonicChords && (
+        <>
+          <span className="text-slate-600">·</span>
+          <span>highlight</span>
+          <Popover
+            title="Highlight a chord"
+            label={<Pill>{chordLabel}</Pill>}
+            triggerClassName={`${pillClass} ${targetLayer.enabled ? toneClass.chord : toneClass.muted}`}
+            panelClassName="w-80"
+          >
+            {(close) => <ChordMenu triads={triads} scaleLabel={scaleLabel} onDone={close} />}
+          </Popover>
 
-      {targetLayer.enabled && (
-        <Popover
-          title="Show one inversion"
-          label={<Pill>{inversionLabel.toLowerCase()}</Pill>}
-          triggerClassName={`${pillClass} ${toneClass.chord}`}
-          panelClassName="w-80"
-        >
-          {() => <InversionMenu />}
-        </Popover>
+          {targetLayer.enabled && (
+            <Popover
+              title="Show one inversion"
+              label={<Pill>{inversionLabel.toLowerCase()}</Pill>}
+              triggerClassName={`${pillClass} ${toneClass.chord}`}
+              panelClassName="w-80"
+            >
+              {() => <InversionMenu />}
+            </Popover>
+          )}
+        </>
       )}
 
       <span className="text-slate-600">·</span>
@@ -178,6 +185,22 @@ export const SentenceBar: FC = () => {
       >
         {() => <AreaMenu />}
       </Popover>
+
+      <div className="ml-auto flex items-center">
+        <button
+          type="button"
+          onClick={toggleScaleFinder}
+          aria-pressed={scaleFinderActive}
+          title="Pick notes on the fretboard to find matching scales"
+          className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-lg border text-xs font-semibold transition cursor-pointer ${
+            scaleFinderActive
+              ? 'bg-sky-600 border-sky-400 text-white shadow-sm'
+              : 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700 hover:text-white'
+          }`}
+        >
+          <span>Find scale</span>
+        </button>
+      </div>
     </div>
   );
 };
@@ -197,8 +220,10 @@ const ScaleMenu: FC = () => {
   const parentMajorRoot = getParentMajorRoot(scaleLayer.rootPitchClass, scaleDef);
   const rootName = (pc: PitchClass) => getChromaticNoteName(pc, scaleLayer.preferFlats);
 
+  const isDiatonicMode = DIATONIC_MODES.some((m) => m.id === scaleLayer.scaleId);
+
   const selectMode = (modeId: string) =>
-    keep === 'notes' ? pivotRelativeMode(modeId) : setScaleLayer({ scaleId: modeId });
+    keep === 'notes' && isDiatonicMode ? pivotRelativeMode(modeId) : setScaleLayer({ scaleId: modeId });
 
   return (
     <div className="flex flex-col gap-3">
@@ -220,32 +245,34 @@ const ScaleMenu: FC = () => {
 
       <div>
         <div className="flex items-center justify-between gap-2 mb-1.5">
-          <MenuHeading>Mode</MenuHeading>
-          <div className="flex items-center gap-1 text-[10px] text-slate-500 mb-1.5">
-            <span>switching keeps</span>
-            {(['root', 'notes'] as const).map((k) => (
-              <button
-                key={k}
-                type="button"
-                onClick={() => setKeep(k)}
-                title={
-                  k === 'root'
-                    ? 'E.g. A Minor → A Dorian: same root, different notes'
-                    : 'E.g. A Minor → C Major: same notes, new root'
-                }
-                className={`px-1.5 py-0.5 rounded cursor-pointer ${
-                  keep === k ? 'bg-sky-600 text-white font-semibold' : 'bg-slate-800 text-slate-400 hover:text-white'
-                }`}
-              >
-                the {k}
-              </button>
-            ))}
-          </div>
+          <MenuHeading>Scale / Mode</MenuHeading>
+          {isDiatonicMode && (
+            <div className="flex items-center gap-1 text-[10px] text-slate-500 mb-1.5">
+              <span>switching keeps</span>
+              {(['root', 'notes'] as const).map((k) => (
+                <button
+                  key={k}
+                  type="button"
+                  onClick={() => setKeep(k)}
+                  title={
+                    k === 'root'
+                      ? 'E.g. A Minor → A Dorian: same root, different notes'
+                      : 'E.g. A Minor → C Major: same notes, new root'
+                  }
+                  className={`px-1.5 py-0.5 rounded cursor-pointer ${
+                    keep === k ? 'bg-sky-600 text-white font-semibold' : 'bg-slate-800 text-slate-400 hover:text-white'
+                  }`}
+                >
+                  the {k}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
         <div className="flex flex-col gap-1 max-h-72 overflow-y-auto pr-1">
           {MODES.map((mode) => {
             const def = SCALE_MAP[mode.id];
-            const resultingPitch = (keep === 'notes'
+            const resultingPitch = (keep === 'notes' && isDiatonicMode
               ? (parentMajorRoot + mode.semitonesFromParent) % 12
               : scaleLayer.rootPitchClass) as PitchClass;
             const resultingRoot = rootName(resultingPitch);
@@ -264,6 +291,27 @@ const ScaleMenu: FC = () => {
                   <span className="block text-[11px] opacity-70">{mode.characteristic}</span>
                 </span>
                 <span className="text-[10px] font-mono opacity-60 whitespace-nowrap">{mode.formula}</span>
+              </Option>
+            );
+          })}
+
+          <div className="pt-2 mt-1 border-t border-slate-800">
+            <MenuHeading>Pentatonic, Blues &amp; Minor Variants</MenuHeading>
+          </div>
+          {EXTRA_SCALES.map((def) => {
+            const formula = def.degrees.map((d) => d.replace(/b/g, '♭').replace(/#/g, '♯')).join(' ');
+            return (
+              <Option
+                key={def.id}
+                selected={scaleLayer.scaleId === def.id}
+                onClick={() => setScaleLayer({ scaleId: def.id })}
+                title={formula}
+                className="px-2.5 py-1.5 flex items-center justify-between gap-2 text-left"
+              >
+                <span className="text-xs font-bold">
+                  {rootName(scaleLayer.rootPitchClass)} {getScaleShortName(def)}
+                </span>
+                <span className="text-[10px] font-mono opacity-60 whitespace-nowrap">{formula}</span>
               </Option>
             );
           })}

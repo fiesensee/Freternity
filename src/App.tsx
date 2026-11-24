@@ -11,6 +11,7 @@ import { audioSynthAdapter } from './adapters/audioSynth';
 import { APP_VERSION } from './version';
 import {
   LensSwitcher,
+  ScaleFinderPanel,
   SentenceBar,
   TunerBar,
   TuningForkIcon,
@@ -27,6 +28,9 @@ export const App: FC = () => {
   const exploreViewState = useFretboardStore((s) => s.viewState);
   const viewWindow = useFretboardStore((s) => s.viewWindow);
   const resetToDefaults = useFretboardStore((s) => s.resetToDefaults);
+  const scaleFinderActive = useFretboardStore((s) => s.scaleFinderActive);
+  const scaleFinderPositions = useFretboardStore((s) => s.scaleFinderPositions);
+  const toggleScaleFinderPosition = useFretboardStore((s) => s.toggleScaleFinderPosition);
 
   // Practice state
   const practicePhase = usePracticeStore((s) => s.engine.phase);
@@ -103,7 +107,7 @@ export const App: FC = () => {
   }, [isPracticing, practicePhase, evaluation, liveEvaluation]);
 
   const legendContext: LegendContext = !isPracticing
-    ? { kind: 'explore', viewState: effectiveViewState }
+    ? { kind: 'explore', viewState: effectiveViewState, scaleFinderActive }
     : practicePhase === 'REVEALING'
     ? {
         kind: 'reveal',
@@ -115,13 +119,18 @@ export const App: FC = () => {
       }
     : { kind: 'prompt', inputMode, rhythm: !!rhythmSpec };
 
-  const canClickNotes =
+  const canClickPracticeNotes =
     isPracticing && practicePhase === 'PROMPTING' && inputMode === 'POINTER' && !rhythmSpec;
+  const canClickExploreFinder = !isPracticing && activeTab === 'explore' && scaleFinderActive;
+  const canClickNotes = canClickPracticeNotes || canClickExploreFinder;
 
   const handleNodeClick = (node: ComputedFretNode) => {
-    if (canClickNotes) {
+    if (canClickPracticeNotes) {
       audioSynthAdapter.playSingleNote(node.frequencyHz);
       toggleUserSelection(node.position);
+    } else if (canClickExploreFinder) {
+      audioSynthAdapter.playSingleNote(node.frequencyHz);
+      toggleScaleFinderPosition(node.position);
     }
   };
 
@@ -233,7 +242,12 @@ export const App: FC = () => {
         )}
 
         {/* Explore: what to show, phrased as one sentence */}
-        {activeTab === 'explore' && !isPracticing && <SentenceBar />}
+        {activeTab === 'explore' && !isPracticing && (
+          <>
+            <SentenceBar />
+            <ScaleFinderPanel />
+          </>
+        )}
 
         {/* Responsive SVG Fretboard (shown in explore or while practicing) */}
         {(activeTab === 'explore' || isPracticing) && (
@@ -264,7 +278,14 @@ export const App: FC = () => {
               matrix={matrix}
               instrument={GUITAR_6_STANDARD}
               viewWindow={viewWindow}
-              userSelections={isPracticing ? userSelections : undefined}
+              userSelections={
+                isPracticing
+                  ? userSelections
+                  : canClickExploreFinder
+                  ? scaleFinderPositions
+                  : undefined
+              }
+              selectedNoteLabel={canClickExploreFinder ? 'NOTE_NAME' : 'DOT'}
               comparisonMap={comparisonMap}
               isInteractivePractice={canClickNotes}
               onNodeClick={handleNodeClick}

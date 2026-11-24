@@ -212,3 +212,68 @@ describe('useFretboardStore persisted explore config', () => {
     expect(parsed.filterMask.activeStrings).toEqual([1, 2, 3]);
   });
 });
+
+describe('useFretboardStore scale finder', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    useFretboardStore.getState().resetToDefaults();
+  });
+
+  it('starts inactive with no selected positions', () => {
+    expect(useFretboardStore.getState().scaleFinderActive).toBe(false);
+    expect(useFretboardStore.getState().scaleFinderPositions).toEqual([]);
+  });
+
+  it('toggles scale finder mode and note positions without mutating viewState', () => {
+    const initialView = useFretboardStore.getState().viewState;
+
+    useFretboardStore.getState().toggleScaleFinder();
+    expect(useFretboardStore.getState().scaleFinderActive).toBe(true);
+
+    useFretboardStore.getState().toggleScaleFinderPosition({ stringIndex: 6, fret: 5 });
+    useFretboardStore.getState().toggleScaleFinderPosition({ stringIndex: 5, fret: 3 });
+    expect(useFretboardStore.getState().scaleFinderPositions).toEqual([
+      { stringIndex: 6, fret: 5 },
+      { stringIndex: 5, fret: 3 },
+    ]);
+
+    // Toggling the same position removes it
+    useFretboardStore.getState().toggleScaleFinderPosition({ stringIndex: 6, fret: 5 });
+    expect(useFretboardStore.getState().scaleFinderPositions).toEqual([
+      { stringIndex: 5, fret: 3 },
+    ]);
+
+    // viewState remains unchanged while selecting notes
+    expect(useFretboardStore.getState().viewState).toEqual(initialView);
+
+    // Clear resets positions
+    useFretboardStore.getState().clearScaleFinderPositions();
+    expect(useFretboardStore.getState().scaleFinderPositions).toEqual([]);
+  });
+
+  it('applies a non-7-note scale (e.g. minor_pentatonic) cleanly and keeps finder open', () => {
+    useFretboardStore.getState().setScaleFinderActive(true);
+    useFretboardStore.getState().setTargetChord(0, 'maj', 'I');
+
+    useFretboardStore.getState().setScaleLayer({
+      enabled: true,
+      rootPitchClass: 9,
+      scaleId: 'minor_pentatonic',
+    });
+
+    const state = useFretboardStore.getState();
+    expect(state.viewState.scaleLayer.rootPitchClass).toBe(9);
+    expect(state.viewState.scaleLayer.scaleId).toBe('minor_pentatonic');
+    expect(state.viewState.targetLayer.enabled).toBe(false);
+    expect(state.scaleFinderActive).toBe(true);
+  });
+
+  it('resets scale finder state on resetToDefaults', () => {
+    useFretboardStore.getState().setScaleFinderActive(true);
+    useFretboardStore.getState().toggleScaleFinderPosition({ stringIndex: 1, fret: 0 });
+
+    useFretboardStore.getState().resetToDefaults();
+    expect(useFretboardStore.getState().scaleFinderActive).toBe(false);
+    expect(useFretboardStore.getState().scaleFinderPositions).toEqual([]);
+  });
+});

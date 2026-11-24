@@ -132,4 +132,32 @@ describe('FretboardSvg integration and projection verification', () => {
     expect(element.props.renderPart).toBe('badge');
     expect(element.props.shape).toBe('E');
   });
+
+  it('passes selectedNoteLabel and userSelections into FretboardSvg for Explore Scale Finder', async () => {
+    const React = await import('react');
+    const { FretboardSvg } = await import('../../src/components/fretboard/FretboardSvg');
+    const matrix = projectFretboard(
+      {
+        instrumentId: 'guitar_6_standard',
+        labelMode: 'NOTE_NAME',
+        scaleLayer: { enabled: true, rootPitchClass: 0, preferFlats: true, scaleId: 'ionian' },
+        targetLayer: { enabled: false, rootPitchClass: 0, chordId: 'maj' },
+        filterMask: { activeStrings: [1, 2, 3, 4, 5, 6], fretRange: { min: 0, max: 22 } },
+      },
+      GUITAR_6_STANDARD
+    );
+
+    const selections = [{ stringIndex: 6, fret: 5 }];
+    const element = React.createElement(FretboardSvg, {
+      matrix,
+      instrument: GUITAR_6_STANDARD,
+      userSelections: selections,
+      selectedNoteLabel: 'NOTE_NAME',
+      isInteractivePractice: true,
+    });
+
+    expect(element.props.userSelections).toEqual(selections);
+    expect(element.props.selectedNoteLabel).toBe('NOTE_NAME');
+    expect(element.props.isInteractivePractice).toBe(true);
+  });
 });

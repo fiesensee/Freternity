@@ -80,6 +80,7 @@ export function isFlatKeySignature(
 
 /**
  * Resolves the parent major scale root pitch class for any diatonic mode.
+ * For non-diatonic scales (without parentMajorOffset), returns the modeRoot itself.
  */
 export function getParentMajorRoot(
   modeRoot: PitchClass,
@@ -110,8 +111,19 @@ export function resolveRootNoteName(
   return isFlat ? CHROMATIC_FLATS[root] : CHROMATIC_SHARPS[root];
 }
 
+const DEGREE_LETTER_OFFSET: Readonly<Record<string, number>> = {
+  '1': 0,
+  b2: 1, '2': 1, '#2': 1,
+  b3: 2, '3': 2,
+  '4': 3, '#4': 3,
+  b5: 4, '5': 4, '#5': 4,
+  b6: 5, '6': 5,
+  bb7: 6, b7: 6, '7': 6,
+};
+
 /**
- * Spells the 7 notes of a diatonic scale such that each letter name (A..G) appears exactly once.
+ * Spells the notes of a scale using degree letter offsets (or sequential letters for 7-note diatonic scales)
+ * so each scale degree maps to an appropriate enharmonic name.
  */
 export function getDiatonicScaleSpelling(
   rootPitchClass: PitchClass,
@@ -131,8 +143,13 @@ export function getDiatonicScaleSpelling(
   for (let degreeIdx = 0; degreeIdx < scale.semitones.length; degreeIdx++) {
     const semitonesFromRoot = scale.semitones[degreeIdx];
     const pitchClass = ((rootPitchClass + semitonesFromRoot) % 12) as PitchClass;
+    const degreeLabel = scale.degrees[degreeIdx];
+    const letterOffset =
+      scale.semitones.length === 7
+        ? degreeIdx
+        : (DEGREE_LETTER_OFFSET[degreeLabel] ?? degreeIdx);
 
-    const letter = ORDERED_NATURAL_LETTERS[(startLetterIdx + degreeIdx) % 7];
+    const letter = ORDERED_NATURAL_LETTERS[(startLetterIdx + letterOffset) % 7];
     const naturalPitch = NATURAL_NOTE_PITCH_CLASSES[letter];
 
     // Compute accidental difference between actual pitch class and natural note pitch
@@ -145,7 +162,10 @@ export function getDiatonicScaleSpelling(
     else if (diff === -1) accidental = 'b';
     else if (diff === -2) accidental = 'bb';
 
-    spelling[pitchClass] = `${letter}${accidental}`;
+    // If two degrees map to the same pitchClass (shouldn't happen in valid scales, but guard), keep first
+    if (!spelling[pitchClass]) {
+      spelling[pitchClass] = `${letter}${accidental}`;
+    }
   }
 
   return spelling as Record<PitchClass, string>;
@@ -227,12 +247,16 @@ export interface DiatonicTriadInfo {
 }
 
 /**
- * Computes the 7 diatonic triads for a given scale root and scale definition.
+ * Computes the diatonic triads for a given scale root and scale definition.
+ * Only builds 7 triads on 7-note scales; for pentatonic/blues scales returns empty.
  */
 export function getDiatonicTriads(
   scaleRoot: PitchClass,
   scaleDef: ScaleDefinition
 ): DiatonicTriadInfo[] {
+  if (scaleDef.semitones.length !== 7) {
+    return [];
+  }
   return scaleDef.semitones.map((semi, degreeIdx) => {
     const rootPitch = ((scaleRoot + semi) % 12) as PitchClass;
     const thirdSemi = scaleDef.semitones[(degreeIdx + 2) % 7];
@@ -274,4 +298,81 @@ export function getScaleShortName(scale: ScaleDefinition): string {
   if (scale.id === 'ionian') return 'Major';
   if (scale.id === 'aeolian') return 'Minor';
   return scale.name;
+}
+
+export interface ScaleMatch {
+  rootPitchClass: PitchClass;
+  scale: ScaleDefinition;
+  /** True when the selected pitch classes match the scale's pitch classes 1-to-1. */
+  isExact: boolean;
+  /** Fraction of the scale's notes covered by the selected notes (0..1). */
+  coverage: number;
+  /** Number of notes in the scale that were NOT selected. */
+  missingCount: number;
+}
+
+/**
+ * Finds all `(rootPitchClass, scale)` pairs from `scales` (defaulting to all entries
+ * in `SCALE_MAP`) whose pitch-class set is a superset of `selectedPitchClasses`.
+ *
+ * Results are sorted by:
+ * 1. Exact matches first (`isExact === true`)
+ * 2. Higher coverage / fewer missing scale notes (e.g., 5-note pentatonic beats 7-note major for 5 matching notes)
+ * 3. Canonical scale order in `scales`, then ascending root pitch class (0..11)
+ */
+export function findMatchingScales(
+  selectedPitchClasses: readonly PitchClass[],
+  scales: readonly ScaleDefinition[] = Object.values(SCALE_MAP)
+): ScaleMatch[] {
+  // Deduplicate and normalize selected pitch classes
+  const uniqueSelected = Array.from(
+    new Set(selectedPitchClasses.map((pc) => (((pc % 12) + 12) % 12) as PitchClass))
+  );
+
+  if (uniqueSelected.length === 0) {
+    return [];
+  }
+
+  const scaleOrder = new Map<string, number>();
+  scales.forEach((s, idx) => scaleOrder.set(s.id, idx));
+
+  const matches: ScaleMatch[] = [];
+
+  for (const scale of scales) {
+    const scaleSize = scale.semitones.length;
+    if (uniqueSelected.length > scaleSize) continue;
+
+    for (let root = 0; root < 12; root++) {
+      const rootPc = root as PitchClass;
+      const scalePitchSet = new Set(
+        scale.semitones.map((s) => ((rootPc + s) % 12) as PitchClass)
+      );
+
+      const allIncluded = uniqueSelected.every((pc) => scalePitchSet.has(pc));
+      if (!allIncluded) continue;
+
+      const missingCount = scalePitchSet.size - uniqueSelected.length;
+      const isExact = missingCount === 0;
+      const coverage = uniqueSelected.length / scalePitchSet.size;
+
+      matches.push({
+        rootPitchClass: rootPc,
+        scale,
+        isExact,
+        coverage,
+        missingCount,
+      });
+    }
+  }
+
+  matches.sort((a, b) => {
+    if (a.isExact !== b.isExact) return a.isExact ? -1 : 1;
+    if (a.missingCount !== b.missingCount) return a.missingCount - b.missingCount;
+    const orderA = scaleOrder.get(a.scale.id) ?? 0;
+    const orderB = scaleOrder.get(b.scale.id) ?? 0;
+    if (orderA !== orderB) return orderA - orderB;
+    return a.rootPitchClass - b.rootPitchClass;
+  });
+
+  return matches;
 }
