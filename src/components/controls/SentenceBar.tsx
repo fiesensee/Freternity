@@ -211,17 +211,7 @@ const ScaleMenu: FC = () => {
   return (
     <div className="flex flex-col gap-3">
       <div>
-        <div className="flex items-center justify-between">
-          <MenuHeading>Root note</MenuHeading>
-          <button
-            type="button"
-            onClick={() => setScaleLayer({ preferFlats: !scaleLayer.preferFlats })}
-            title="Spell black keys as flats or sharps"
-            className="text-[11px] font-mono px-2 py-0.5 mb-1.5 rounded bg-slate-800 text-slate-300 border border-slate-700 hover:text-white cursor-pointer"
-          >
-            {scaleLayer.preferFlats ? '♭ flats' : '♯ sharps'}
-          </button>
-        </div>
+        <MenuHeading>Root note</MenuHeading>
         <div className="grid grid-cols-6 gap-1">
           {Array.from({ length: 12 }, (_, i) => i as PitchClass).map((pc) => (
             <Option

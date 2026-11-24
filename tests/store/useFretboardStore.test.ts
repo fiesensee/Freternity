@@ -51,6 +51,19 @@ describe('useFretboardStore', () => {
     ).toBe(true);
   });
 
+  it('changes note spelling without changing the selected scale or chord', () => {
+    const store = useFretboardStore.getState;
+    store().setScaleLayer({ rootPitchClass: 9, scaleId: 'aeolian' });
+    store().setTargetLayer({ enabled: true });
+    const before = store().viewState;
+
+    store().setScaleLayer({ preferFlats: false });
+    const after = store().viewState;
+
+    expect(after.scaleLayer).toEqual({ ...before.scaleLayer, preferFlats: false });
+    expect(after.targetLayer).toEqual(before.targetLayer);
+  });
+
   it('pivots relative modes mathematically', () => {
     // Set base scale to C Ionian (root = 0, scaleId = 'ionian')
     useFretboardStore.getState().setScaleLayer({ rootPitchClass: 0, scaleId: 'ionian' });

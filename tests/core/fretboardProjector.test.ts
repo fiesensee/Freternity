@@ -28,6 +28,44 @@ describe('fretboardProjector', () => {
     expect(withChord[5][3].visualPriority).toBe('CONTEXT_SCALE');
   });
 
+  it('spells fretboard note labels with the requested sharps or flats', () => {
+    const baseState: FretboardViewState = {
+      instrumentId: 'guitar_6_standard',
+      labelMode: 'NOTE_NAME',
+      scaleLayer: { enabled: true, rootPitchClass: 0, preferFlats: true, scaleId: 'ionian' },
+      targetLayer: { enabled: false, rootPitchClass: 0, chordId: 'maj' },
+      filterMask: { activeStrings: [1, 2, 3, 4, 5, 6], fretRange: { min: 0, max: 22 } },
+    };
+
+    const flats = projectFretboard(baseState, GUITAR_6_STANDARD);
+    const sharps = projectFretboard(
+      { ...baseState, scaleLayer: { ...baseState.scaleLayer, preferFlats: false } },
+      GUITAR_6_STANDARD
+    );
+
+    // Low E string, fret 6: Bb in C Major, which has no black keys in its key signature
+    expect(flats[5][6].noteName).toBe('Bb');
+    expect(flats[5][6].displayLabel).toBe('Bb');
+    expect(sharps[5][6].noteName).toBe('A#');
+    expect(sharps[5][6].displayLabel).toBe('A#');
+
+    // G Major keeps its diatonic F#, but its other black keys follow the display preference
+    const gMajor = { ...baseState, scaleLayer: { ...baseState.scaleLayer, rootPitchClass: 7 as const } };
+    const gFlats = projectFretboard(gMajor, GUITAR_6_STANDARD);
+    const gSharps = projectFretboard(
+      { ...gMajor, scaleLayer: { ...gMajor.scaleLayer, preferFlats: false } },
+      GUITAR_6_STANDARD
+    );
+    expect(gFlats[5][2].noteName).toBe('F#');
+    expect(gSharps[5][2].noteName).toBe('F#');
+    expect(gFlats[5][4].noteName).toBe('Ab');
+    expect(gSharps[5][4].noteName).toBe('G#');
+
+    // Without a scale, every note uses the display preference
+    const noScale = { ...baseState, scaleLayer: { ...baseState.scaleLayer, enabled: false, preferFlats: false } };
+    expect(projectFretboard(noScale, GUITAR_6_STANDARD)[5][6].noteName).toBe('A#');
+  });
+
   it('accurately computes A Aeolian with F Major triad overlay (1st Inversion on strings 1-2-3)', () => {
     const state: FretboardViewState = {
       instrumentId: 'guitar_6_standard',

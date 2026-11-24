@@ -8,6 +8,7 @@ import {
 } from './models';
 import { CHORD_MAP, GUITAR_6_STANDARD, SCALE_MAP } from './constants';
 import {
+  getChromaticNoteName,
   getIntervalDegree,
   getNoteNameInContext,
   midiToFrequencyHz,
@@ -118,12 +119,7 @@ export function projectFretboard(
             scaleDefinition,
             state.scaleLayer.preferFlats
           )
-        : getNoteNameInContext(
-            pitchClass,
-            state.scaleLayer.rootPitchClass,
-            SCALE_MAP['ionian'],
-            state.scaleLayer.preferFlats
-          );
+        : getChromaticNoteName(pitchClass, state.scaleLayer.preferFlats);
 
       // Scale Layer
       let inScaleLayer = false;
