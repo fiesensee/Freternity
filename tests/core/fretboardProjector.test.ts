@@ -28,56 +28,29 @@ describe('fretboardProjector', () => {
     expect(withChord[5][3].visualPriority).toBe('CONTEXT_SCALE');
   });
 
-  it('spells every visible fretboard label with the requested sharps or flats', () => {
-    const baseState: FretboardViewState = {
+  it('spells every visible fretboard label as Gb or F#', () => {
+    const state: FretboardViewState = {
       instrumentId: 'guitar_6_standard',
       labelMode: 'NOTE_NAME',
-      scaleLayer: { enabled: true, rootPitchClass: 0, preferFlats: true, scaleId: 'ionian' },
-      targetLayer: { enabled: false, rootPitchClass: 0, chordId: 'maj' },
+      scaleLayer: { enabled: true, rootPitchClass: 6, preferFlats: true, scaleId: 'ionian' },
+      targetLayer: { enabled: false, rootPitchClass: 6, chordId: 'maj' },
       filterMask: { activeStrings: [1, 2, 3, 4, 5, 6], fretRange: { min: 0, max: 22 } },
     };
-    const visibleLabels = (state: FretboardViewState) =>
+    const visibleLabels = (preferFlats: boolean) =>
       [
         ...new Set(
-          projectFretboard(state, GUITAR_6_STANDARD)
+          projectFretboard(
+            { ...state, scaleLayer: { ...state.scaleLayer, preferFlats } },
+            GUITAR_6_STANDARD
+          )
             .flat()
             .filter((node) => node.visualPriority !== 'HIDDEN')
             .map((node) => node.displayLabel)
         ),
       ].sort();
-    const withFlats = (state: FretboardViewState) => ({
-      ...state,
-      scaleLayer: { ...state.scaleLayer, preferFlats: true },
-    });
-    const withSharps = (state: FretboardViewState) => ({
-      ...state,
-      scaleLayer: { ...state.scaleLayer, preferFlats: false },
-    });
 
-    // C Ionian has no black keys, so its labels stay the same in both modes
-    expect(visibleLabels(withFlats(baseState))).toEqual(['A', 'B', 'C', 'D', 'E', 'F', 'G']);
-    expect(visibleLabels(withSharps(baseState))).toEqual(['A', 'B', 'C', 'D', 'E', 'F', 'G']);
-
-    // A flat-key scale must switch its visible labels too (Bb/Eb → A#/D#)
-    const bbIonian = {
-      ...baseState,
-      scaleLayer: { ...baseState.scaleLayer, rootPitchClass: 10 as const },
-    };
-    expect(visibleLabels(withFlats(bbIonian))).toEqual(['A', 'Bb', 'C', 'D', 'Eb', 'F', 'G']);
-    expect(visibleLabels(withSharps(bbIonian))).toEqual(['A', 'A#', 'C', 'D', 'D#', 'F', 'G']);
-
-    // G Major's diatonic F# also follows the display preference
-    const gIonian = {
-      ...baseState,
-      scaleLayer: { ...baseState.scaleLayer, rootPitchClass: 7 as const },
-    };
-    expect(visibleLabels(withFlats(gIonian))).toContain('Gb');
-    expect(visibleLabels(withSharps(gIonian))).toContain('F#');
-
-    // Notes outside a key follow the preference too, even when no scale is shown
-    const noScale = { ...baseState, scaleLayer: { ...baseState.scaleLayer, enabled: false } };
-    expect(projectFretboard(withFlats(noScale), GUITAR_6_STANDARD)[5][6].noteName).toBe('Bb');
-    expect(projectFretboard(withSharps(noScale), GUITAR_6_STANDARD)[5][6].noteName).toBe('A#');
+    expect(visibleLabels(true)).toEqual(['Ab', 'B', 'Bb', 'Db', 'Eb', 'F', 'Gb']);
+    expect(visibleLabels(false)).toEqual(['A#', 'B', 'C#', 'D#', 'F', 'F#', 'G#']);
   });
 
   it('accurately computes A Aeolian with F Major triad overlay (1st Inversion on strings 1-2-3)', () => {

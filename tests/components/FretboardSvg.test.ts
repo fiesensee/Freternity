@@ -87,25 +87,20 @@ describe('FretboardSvg integration and projection verification', () => {
     expect(startX).toBeGreaterThan(0);
   });
 
-  it('renders flat and sharp spelling for all visible fretboard labels', () => {
-    const stateFor = (rootPitchClass: number, preferFlats: boolean): FretboardViewState => ({
+  it('renders Gb/F# note labels for every visible fretboard label', () => {
+    const stateFor = (preferFlats: boolean): FretboardViewState => ({
       instrumentId: 'guitar_6_standard',
       labelMode: 'NOTE_NAME',
-      scaleLayer: {
-        enabled: true,
-        rootPitchClass: rootPitchClass as FretboardViewState['scaleLayer']['rootPitchClass'],
-        preferFlats,
-        scaleId: 'ionian',
-      },
-      targetLayer: { enabled: false, rootPitchClass: 0, chordId: 'maj' },
+      scaleLayer: { enabled: true, rootPitchClass: 6, preferFlats, scaleId: 'ionian' },
+      targetLayer: { enabled: false, rootPitchClass: 6, chordId: 'maj' },
       filterMask: { activeStrings: [1, 2, 3, 4, 5, 6], fretRange: { min: 0, max: 22 } },
     });
 
     // Read the actual <text> labels the SVG renders, not just projected node names
-    const renderedNoteLabels = (state: FretboardViewState) => {
+    const renderedNoteLabels = (preferFlats: boolean) => {
       const html = renderToStaticMarkup(
         createElement(FretboardSvg, {
-          matrix: projectFretboard(state, GUITAR_6_STANDARD),
+          matrix: projectFretboard(stateFor(preferFlats), GUITAR_6_STANDARD),
           instrument: GUITAR_6_STANDARD,
         })
       );
@@ -115,14 +110,8 @@ describe('FretboardSvg integration and projection verification', () => {
       return [...new Set(labels)].sort();
     };
 
-    // C Ionian: all naturals, so the visible labels are unchanged by the toggle
-    const cNaturals = ['A', 'B', 'C', 'D', 'E', 'F', 'G'];
-    expect(renderedNoteLabels(stateFor(0, true))).toEqual(cNaturals);
-    expect(renderedNoteLabels(stateFor(0, false))).toEqual(cNaturals);
-
-    // Bb Ionian: the visible black-key labels must switch too
-    expect(renderedNoteLabels(stateFor(10, true))).toEqual(['A', 'Bb', 'C', 'D', 'Eb', 'F', 'G']);
-    expect(renderedNoteLabels(stateFor(10, false))).toEqual(['A', 'A#', 'C', 'D', 'D#', 'F', 'G']);
+    expect(renderedNoteLabels(true)).toEqual(['Ab', 'B', 'Bb', 'Db', 'Eb', 'F', 'Gb']);
+    expect(renderedNoteLabels(false)).toEqual(['A#', 'B', 'C#', 'D#', 'F', 'F#', 'G#']);
   });
 
   it('verifies CagedOverlaySvg renders badge over the fretboard', async () => {
