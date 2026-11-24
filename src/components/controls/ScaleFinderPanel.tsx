@@ -3,13 +3,10 @@ import { useFretboardStore } from '../../store/useFretboardStore';
 import { GUITAR_6_STANDARD } from '../../core/constants';
 import { PitchClass } from '../../core/models';
 import {
-  CHROMATIC_FLATS,
-  CHROMATIC_SHARPS,
+  getChromaticNoteName,
   findMatchingScales,
   getScaleShortName,
-  isFlatKeySignature,
   midiToPitchClass,
-  resolveRootNoteName,
   type ScaleMatch,
 } from '../../core/musicTheory';
 
@@ -63,8 +60,7 @@ export const ScaleFinderPanel: FC = () => {
 
   if (!scaleFinderActive) return null;
 
-  const formatNote = (pc: PitchClass) =>
-    scaleLayer.preferFlats ? CHROMATIC_FLATS[pc] : CHROMATIC_SHARPS[pc];
+  const formatNote = (pc: PitchClass) => getChromaticNoteName(pc, scaleLayer.preferFlats);
 
   const applyMatch = (match: ScaleMatch) => {
     setScaleLayer({
@@ -75,10 +71,7 @@ export const ScaleFinderPanel: FC = () => {
   };
 
   const renderMatchButton = (match: ScaleMatch) => {
-    const rootName = resolveRootNoteName(
-      match.rootPitchClass,
-      isFlatKeySignature(match.rootPitchClass, scaleLayer.preferFlats)
-    );
+    const rootName = getChromaticNoteName(match.rootPitchClass, scaleLayer.preferFlats);
     const isApplied =
       scaleLayer.enabled &&
       scaleLayer.rootPitchClass === match.rootPitchClass &&

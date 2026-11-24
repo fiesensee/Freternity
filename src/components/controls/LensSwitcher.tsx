@@ -12,6 +12,8 @@ const LENS_OPTIONS: readonly { mode: NodeLabelMode; key: string; label: string; 
 export const LensSwitcher: FC = () => {
   const currentMode = useFretboardStore((s) => s.viewState.labelMode);
   const setLabelMode = useFretboardStore((s) => s.setLabelMode);
+  const preferFlats = useFretboardStore((s) => s.viewState.scaleLayer.preferFlats);
+  const setScaleLayer = useFretboardStore((s) => s.setScaleLayer);
   const hasChord = useFretboardStore((s) => s.viewState.targetLayer.enabled);
 
   // Keyboard shortcut listener (1-4)
@@ -64,6 +66,30 @@ export const LensSwitcher: FC = () => {
           </button>
         );
       })}
+
+      <span className="w-px h-5 bg-slate-700 mx-1" />
+      <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider px-2">
+        Spelling:
+      </span>
+      {([
+        { preferFlats: true, label: '♭ flats' },
+        { preferFlats: false, label: '♯ sharps' },
+      ] as const).map((opt) => (
+        <button
+          key={opt.label}
+          type="button"
+          aria-pressed={preferFlats === opt.preferFlats}
+          onClick={() => setScaleLayer({ preferFlats: opt.preferFlats })}
+          title="Spell black-key notes on the fretboard with flats or sharps"
+          className={`px-3 py-1.5 rounded-lg text-xs font-medium transition cursor-pointer select-none ${
+            preferFlats === opt.preferFlats
+              ? 'bg-sky-600 text-white shadow-sm ring-1 ring-sky-400/30'
+              : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+          }`}
+        >
+          {opt.label}
+        </button>
+      ))}
     </div>
   );
 };

@@ -91,6 +91,17 @@ export function getParentMajorRoot(
 }
 
 /**
+ * Spells a pitch class with the requested accidental style ("Bb" vs "A#").
+ * Used for notes that are not already spelled by a key signature.
+ */
+export function getChromaticNoteName(
+  pitchClass: PitchClass,
+  preferFlats: boolean = true
+): string {
+  return preferFlats ? CHROMATIC_FLATS[pitchClass] : CHROMATIC_SHARPS[pitchClass];
+}
+
+/**
  * Resolves the root note name (e.g. "F#" vs "Gb", "Bb" vs "A#").
  */
 export function resolveRootNoteName(
@@ -162,7 +173,8 @@ export function getDiatonicScaleSpelling(
 
 /**
  * Gets the note name for any pitch class in the context of an active scale.
- * If in the scale, returns exact diatonic spelling; otherwise falls back to chromatic spelling.
+ * Notes in the scale keep their key-signature spelling; other notes follow the
+ * display preference, so the user can read black keys as flats or sharps.
  */
 export function getNoteNameInContext(
   pitchClass: PitchClass,
@@ -171,12 +183,7 @@ export function getNoteNameInContext(
   preferFlats: boolean = true
 ): string {
   const diatonicSpelling = getDiatonicScaleSpelling(scaleRoot, scale, preferFlats);
-  if (diatonicSpelling[pitchClass]) {
-    return diatonicSpelling[pitchClass];
-  }
-  const parentMajor = getParentMajorRoot(scaleRoot, scale);
-  const isFlat = isFlatKeySignature(parentMajor, preferFlats);
-  return isFlat ? CHROMATIC_FLATS[pitchClass] : CHROMATIC_SHARPS[pitchClass];
+  return diatonicSpelling[pitchClass] ?? getChromaticNoteName(pitchClass, preferFlats);
 }
 
 // ============================================================================
