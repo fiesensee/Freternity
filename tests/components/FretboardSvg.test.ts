@@ -1,7 +1,10 @@
+import { createElement } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { GUITAR_6_STANDARD } from '../../src/core/constants';
 import { projectFretboard } from '../../src/core/fretboardProjector';
 import { FretboardViewState } from '../../src/core/models';
+import { FretboardSvg } from '../../src/components/fretboard/FretboardSvg';
 
 describe('FretboardSvg integration and projection verification', () => {
   it('prepares correct visual priorities and hierarchy for SVG rendering', () => {
@@ -82,6 +85,44 @@ describe('FretboardSvg integration and projection verification', () => {
 
     expect(zoomedWidth).toBeLessThan(fullWidth * 0.4); // Zoomed window is significantly narrower
     expect(startX).toBeGreaterThan(0);
+  });
+
+  it('renders flat and sharp spelling for all visible fretboard labels', () => {
+    const stateFor = (rootPitchClass: number, preferFlats: boolean): FretboardViewState => ({
+      instrumentId: 'guitar_6_standard',
+      labelMode: 'NOTE_NAME',
+      scaleLayer: {
+        enabled: true,
+        rootPitchClass: rootPitchClass as FretboardViewState['scaleLayer']['rootPitchClass'],
+        preferFlats,
+        scaleId: 'ionian',
+      },
+      targetLayer: { enabled: false, rootPitchClass: 0, chordId: 'maj' },
+      filterMask: { activeStrings: [1, 2, 3, 4, 5, 6], fretRange: { min: 0, max: 22 } },
+    });
+
+    // Read the actual <text> labels the SVG renders, not just projected node names
+    const renderedNoteLabels = (state: FretboardViewState) => {
+      const html = renderToStaticMarkup(
+        createElement(FretboardSvg, {
+          matrix: projectFretboard(state, GUITAR_6_STANDARD),
+          instrument: GUITAR_6_STANDARD,
+        })
+      );
+      const labels = [...html.matchAll(/<text[^>]*>([A-G][#b]?)<\/text>/g)].map(
+        (match) => match[1]
+      );
+      return [...new Set(labels)].sort();
+    };
+
+    // C Ionian: all naturals, so the visible labels are unchanged by the toggle
+    const cNaturals = ['A', 'B', 'C', 'D', 'E', 'F', 'G'];
+    expect(renderedNoteLabels(stateFor(0, true))).toEqual(cNaturals);
+    expect(renderedNoteLabels(stateFor(0, false))).toEqual(cNaturals);
+
+    // Bb Ionian: the visible black-key labels must switch too
+    expect(renderedNoteLabels(stateFor(10, true))).toEqual(['A', 'Bb', 'C', 'D', 'Eb', 'F', 'G']);
+    expect(renderedNoteLabels(stateFor(10, false))).toEqual(['A', 'A#', 'C', 'D', 'D#', 'F', 'G']);
   });
 
   it('verifies CagedOverlaySvg renders badge over the fretboard', async () => {

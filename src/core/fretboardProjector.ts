@@ -10,7 +10,6 @@ import { CHORD_MAP, GUITAR_6_STANDARD, SCALE_MAP } from './constants';
 import {
   getChromaticNoteName,
   getIntervalDegree,
-  getNoteNameInContext,
   midiToFrequencyHz,
   midiToOctave,
   midiToPitchClass,
@@ -112,14 +111,9 @@ export function projectFretboard(
       const octave = midiToOctave(midiNote);
       const frequencyHz = midiToFrequencyHz(midiNote);
 
-      const noteName = state.scaleLayer.enabled
-        ? getNoteNameInContext(
-            pitchClass,
-            state.scaleLayer.rootPitchClass,
-            scaleDefinition,
-            state.scaleLayer.preferFlats
-          )
-        : getChromaticNoteName(pitchClass, state.scaleLayer.preferFlats);
+      // Fretboard labels follow the display spelling preference, so every
+      // black-key note can be read as a sharp or a flat regardless of the key.
+      const noteName = getChromaticNoteName(pitchClass, state.scaleLayer.preferFlats);
 
       // Scale Layer
       let inScaleLayer = false;

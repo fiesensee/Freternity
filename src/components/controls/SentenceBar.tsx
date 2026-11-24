@@ -2,14 +2,10 @@ import { useState, type FC, type ReactNode } from 'react';
 import { useFretboardStore } from '../../store/useFretboardStore';
 import { SCALE_MAP } from '../../core/constants';
 import {
-  CHROMATIC_FLATS,
-  CHROMATIC_SHARPS,
-  getDiatonicScaleSpelling,
+  getChromaticNoteName,
   getDiatonicTriads,
   getParentMajorRoot,
   getScaleShortName,
-  isFlatKeySignature,
-  resolveRootNoteName,
 } from '../../core/musicTheory';
 import { CagedShapeId, PitchClass, TriadInversion } from '../../core/models';
 import { Popover } from './Popover';
@@ -121,9 +117,7 @@ export const SentenceBar: FC = () => {
   const { scaleLayer, targetLayer, filterMask } = viewState;
 
   const scaleDef = SCALE_MAP[scaleLayer.scaleId] ?? SCALE_MAP['ionian'];
-  const spelling = getDiatonicScaleSpelling(scaleLayer.rootPitchClass, scaleDef, scaleLayer.preferFlats);
-  const noteName = (pc: PitchClass) =>
-    spelling[pc] ?? (scaleLayer.preferFlats ? CHROMATIC_FLATS[pc] : CHROMATIC_SHARPS[pc]);
+  const noteName = (pc: PitchClass) => getChromaticNoteName(pc, scaleLayer.preferFlats);
 
   const triads = getDiatonicTriads(scaleLayer.rootPitchClass, scaleDef).map((t) => ({
     ...t,
@@ -201,9 +195,7 @@ const ScaleMenu: FC = () => {
 
   const scaleDef = SCALE_MAP[scaleLayer.scaleId] ?? SCALE_MAP['ionian'];
   const parentMajorRoot = getParentMajorRoot(scaleLayer.rootPitchClass, scaleDef);
-  const parentSpelling = getDiatonicScaleSpelling(parentMajorRoot, SCALE_MAP['ionian'], scaleLayer.preferFlats);
-  const rootName = (pc: PitchClass) =>
-    resolveRootNoteName(pc, isFlatKeySignature(pc, scaleLayer.preferFlats));
+  const rootName = (pc: PitchClass) => getChromaticNoteName(pc, scaleLayer.preferFlats);
 
   const selectMode = (modeId: string) =>
     keep === 'notes' ? pivotRelativeMode(modeId) : setScaleLayer({ scaleId: modeId });
@@ -253,10 +245,10 @@ const ScaleMenu: FC = () => {
         <div className="flex flex-col gap-1 max-h-72 overflow-y-auto pr-1">
           {MODES.map((mode) => {
             const def = SCALE_MAP[mode.id];
-            const resultingRoot =
-              keep === 'notes'
-                ? parentSpelling[((parentMajorRoot + mode.semitonesFromParent) % 12) as PitchClass] ?? ''
-                : rootName(scaleLayer.rootPitchClass);
+            const resultingPitch = (keep === 'notes'
+              ? (parentMajorRoot + mode.semitonesFromParent) % 12
+              : scaleLayer.rootPitchClass) as PitchClass;
+            const resultingRoot = rootName(resultingPitch);
             return (
               <Option
                 key={mode.id}
