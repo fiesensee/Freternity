@@ -3,7 +3,7 @@ import { FretboardViewState } from '../../core/models';
 import { getActiveCagedChordShape } from '../../core/fretboardProjector';
 
 export type LegendContext =
-  | { kind: 'explore'; viewState: FretboardViewState }
+  | { kind: 'explore'; viewState: FretboardViewState; scaleFinderActive?: boolean }
   | { kind: 'prompt'; inputMode: 'POINTER' | 'GUITAR'; rhythm?: boolean }
   | {
       kind: 'reveal';
@@ -86,6 +86,9 @@ export const FretboardLegend: FC<{ context: LegendContext }> = ({ context }) => 
       !!viewState.targetLayer.activeInversion &&
       viewState.filterMask.activeStrings.length === 3;
     items = [
+      ...(context.scaleFinderActive
+        ? [<Item key="picked" dot={<Dot className="bg-sky-600 border border-sky-300" />} label="Selected note" />]
+        : []),
       ...chordToneItems(viewState),
       ...(showsInversion
         ? [

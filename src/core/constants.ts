@@ -60,8 +60,46 @@ export const DIATONIC_MODES: readonly ScaleDefinition[] = [
   },
 ] as const;
 
+export const EXTRA_SCALES: readonly ScaleDefinition[] = [
+  {
+    id: 'major_pentatonic',
+    name: 'Major Pentatonic',
+    semitones: [0, 2, 4, 7, 9],
+    degrees: ['1', '2', '3', '5', '6'],
+  },
+  {
+    id: 'minor_pentatonic',
+    name: 'Minor Pentatonic',
+    semitones: [0, 3, 5, 7, 10],
+    degrees: ['1', 'b3', '4', '5', 'b7'],
+  },
+  {
+    id: 'blues',
+    name: 'Minor Blues',
+    semitones: [0, 3, 5, 6, 7, 10],
+    degrees: ['1', 'b3', '4', 'b5', '5', 'b7'],
+  },
+  {
+    id: 'harmonic_minor',
+    name: 'Harmonic Minor',
+    semitones: [0, 2, 3, 5, 7, 8, 11],
+    degrees: ['1', '2', 'b3', '4', '5', 'b6', '7'],
+  },
+  {
+    id: 'melodic_minor',
+    name: 'Melodic Minor',
+    semitones: [0, 2, 3, 5, 7, 9, 11],
+    degrees: ['1', '2', 'b3', '4', '5', '6', '7'],
+  },
+] as const;
+
+export const ALL_SCALES: readonly ScaleDefinition[] = [
+  ...DIATONIC_MODES,
+  ...EXTRA_SCALES,
+] as const;
+
 export const SCALE_MAP: Readonly<Record<string, ScaleDefinition>> = Object.freeze(
-  DIATONIC_MODES.reduce((acc, scale) => {
+  ALL_SCALES.reduce((acc, scale) => {
     acc[scale.id] = scale;
     return acc;
   }, {} as Record<string, ScaleDefinition>)

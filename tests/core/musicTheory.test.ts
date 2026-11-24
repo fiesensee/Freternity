@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  findMatchingScales,
   getDiatonicScaleSpelling,
   getIntervalDegree,
   getNoteNameInContext,
@@ -11,7 +12,7 @@ import {
   midiToPitchClass,
   semitoneDistance,
 } from '../../src/core/musicTheory';
-import { SCALE_MAP } from '../../src/core/constants';
+import { ALL_SCALES, SCALE_MAP } from '../../src/core/constants';
 import { PitchClass } from '../../src/core/models';
 
 describe('musicTheory', () => {
@@ -101,6 +102,89 @@ describe('musicTheory', () => {
       expect(getIntervalDegree(9, 0)).toBe('b3'); // A to C
       expect(getIntervalDegree(9, 4)).toBe('5'); // A to E
       expect(getIntervalDegree(9, 5)).toBe('b6'); // A to F
+    });
+  });
+
+  describe('Scale catalog and findMatchingScales', () => {
+    it('includes diatonic modes, pentatonics, blues, harmonic minor and melodic minor in SCALE_MAP', () => {
+      expect(SCALE_MAP['major_pentatonic']).toBeDefined();
+      expect(SCALE_MAP['minor_pentatonic']).toBeDefined();
+      expect(SCALE_MAP['blues']).toBeDefined();
+      expect(SCALE_MAP['harmonic_minor']).toBeDefined();
+      expect(SCALE_MAP['melodic_minor']).toBeDefined();
+      expect(ALL_SCALES.length).toBe(12);
+    });
+
+    it('returns empty array when no notes are selected', () => {
+      expect(findMatchingScales([])).toEqual([]);
+    });
+
+    it('finds exact matches first and orders partial matches by fewest missing notes', () => {
+      // A Minor Pentatonic: A (9), C (0), D (2), E (4), G (7)
+      const matches = findMatchingScales([9, 0, 2, 4, 7]);
+      const exact = matches.filter((m) => m.isExact);
+
+      expect(exact).toHaveLength(2);
+      // C Major Pentatonic and A Minor Pentatonic share the exact 5 pitch classes
+      expect(exact.map((m) => `${m.rootPitchClass}:${m.scale.id}`)).toEqual(
+        expect.arrayContaining(['0:major_pentatonic', '9:minor_pentatonic'])
+      );
+
+      // Exact matches must appear before partial/containing scales
+      const firstNonExactIdx = matches.findIndex((m) => !m.isExact);
+      expect(firstNonExactIdx).toBe(exact.length);
+
+      // Next best match should be 6-note blues scales missing only 1 note (Eb/D# = 3 for A blues)
+      expect(matches[firstNonExactIdx].scale.id).toBe('blues');
+      expect(matches[firstNonExactIdx].missingCount).toBe(1);
+
+      // C Ionian / A Aeolian / D Dorian etc. contain these 5 notes with 2 missing notes
+      expect(
+        matches.some((m) => m.rootPitchClass === 0 && m.scale.id === 'ionian' && !m.isExact)
+      ).toBe(true);
+      expect(
+        matches.some((m) => m.rootPitchClass === 9 && m.scale.id === 'aeolian' && !m.isExact)
+      ).toBe(true);
+    });
+
+    it('matches harmonic minor, melodic minor, and blues scales specifically', () => {
+      // A Harmonic Minor: A(9), B(11), C(0), D(2), E(4), F(5), G#(8)
+      const harmonicMatches = findMatchingScales([9, 11, 0, 2, 4, 5, 8]);
+      expect(harmonicMatches.filter((m) => m.isExact).map((m) => [m.rootPitchClass, m.scale.id])).toEqual([
+        [9, 'harmonic_minor'],
+      ]);
+
+      // A Melodic Minor: A(9), B(11), C(0), D(2), E(4), F#(6), G#(8)
+      const melodicMatches = findMatchingScales([9, 11, 0, 2, 4, 6, 8]);
+      expect(melodicMatches.filter((m) => m.isExact).map((m) => [m.rootPitchClass, m.scale.id])).toEqual([
+        [9, 'melodic_minor'],
+      ]);
+
+      // A Minor Blues: A(9), C(0), D(2), Eb(3), E(4), G(7)
+      const bluesMatches = findMatchingScales([9, 0, 2, 3, 4, 7]);
+      expect(bluesMatches.filter((m) => m.isExact).map((m) => [m.rootPitchClass, m.scale.id])).toEqual([
+        [9, 'blues'],
+      ]);
+    });
+
+    it('deduplicates and normalizes pitch classes and returns empty when chromatic notes exceed all scales', () => {
+      // Duplicate A (9) and C (0) -> same as [9, 0]
+      const dup = findMatchingScales([9, 0, 9, 0]);
+      const single = findMatchingScales([9, 0]);
+      expect(dup).toEqual(single);
+
+      // 8 distinct pitch classes cannot fit inside any 7-note scale
+      expect(findMatchingScales([0, 1, 2, 3, 4, 5, 6, 7])).toEqual([]);
+    });
+
+    it('spells pentatonic and minor-variant scales properly in getDiatonicScaleSpelling', () => {
+      const aBlues = getDiatonicScaleSpelling(9, SCALE_MAP['blues'], true);
+      expect(aBlues[9]).toBe('A');
+      expect(aBlues[0]).toBe('C');
+      expect(aBlues[2]).toBe('D');
+      expect(aBlues[3]).toBe('Eb');
+      expect(aBlues[4]).toBe('E');
+      expect(aBlues[7]).toBe('G');
     });
   });
 });

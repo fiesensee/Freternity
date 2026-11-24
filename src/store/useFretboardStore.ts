@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import {
+  FretPosition,
   CagedShapeId,
   FilterMaskConfig,
   FretboardViewState,
@@ -45,6 +46,10 @@ export interface FretboardStore {
   viewState: FretboardViewState;
   viewWindow?: { minFret: number; maxFret: number };
 
+  // Explore Scale Finder (transient, not persisted to URL/localStorage)
+  scaleFinderActive: boolean;
+  scaleFinderPositions: FretPosition[];
+
   // Actions
   setLabelMode: (mode: NodeLabelMode) => void;
   setScaleLayer: (config: Partial<ScaleLayerConfig>) => void;
@@ -56,6 +61,12 @@ export interface FretboardStore {
   toggleCagedOverlay: () => void;
   setCagedShape: (shape: CagedShapeId) => void;
   setViewWindow: (window?: { minFret: number; maxFret: number }) => void;
+
+  // Explore Scale Finder Actions
+  setScaleFinderActive: (active: boolean) => void;
+  toggleScaleFinder: () => void;
+  toggleScaleFinderPosition: (pos: FretPosition) => void;
+  clearScaleFinderPositions: () => void;
 
   // Music Theory Pivots
   pivotRelativeMode: (targetModeId: string) => void;
@@ -85,6 +96,29 @@ export const useFretboardStore = create<FretboardStore>((set, get) => {
   return {
     viewState: initialState,
     viewWindow: undefined,
+    scaleFinderActive: false,
+    scaleFinderPositions: [],
+
+    setScaleFinderActive: (active) => set({ scaleFinderActive: active }),
+
+    toggleScaleFinder: () =>
+      set((state) => ({ scaleFinderActive: !state.scaleFinderActive })),
+
+    toggleScaleFinderPosition: (pos) =>
+      set((state) => {
+        const exists = state.scaleFinderPositions.some(
+          (p) => p.stringIndex === pos.stringIndex && p.fret === pos.fret
+        );
+        return {
+          scaleFinderPositions: exists
+            ? state.scaleFinderPositions.filter(
+                (p) => !(p.stringIndex === pos.stringIndex && p.fret === pos.fret)
+              )
+            : [...state.scaleFinderPositions, pos],
+        };
+      }),
+
+    clearScaleFinderPositions: () => set({ scaleFinderPositions: [] }),
 
     setLabelMode: (mode) =>
       updateStateAndSyncUrl((prev) => ({ ...prev, labelMode: mode })),
@@ -103,16 +137,28 @@ export const useFretboardStore = create<FretboardStore>((set, get) => {
           const diatonicTriads = getDiatonicTriads(nextScale.rootPitchClass, scaleDef);
           const tonic = diatonicTriads[0];
 
+          if (tonic) {
+            return {
+              ...prev,
+              scaleLayer: nextScale,
+              targetLayer: {
+                ...prev.targetLayer,
+                // Keep the chord hidden if the user hid it; it still follows the new key
+                enabled: prev.targetLayer.enabled,
+                rootPitchClass: tonic.rootPitch,
+                chordId: tonic.chordId,
+                diatonicRomanNumeral: tonic.romanNumeral,
+              },
+            };
+          }
+
+          // Non-7-note scale (pentatonic/blues): keep chord hidden and fallback safely
           return {
             ...prev,
             scaleLayer: nextScale,
             targetLayer: {
               ...prev.targetLayer,
-              // Keep the chord hidden if the user hid it; it still follows the new key
-              enabled: prev.targetLayer.enabled,
-              rootPitchClass: tonic.rootPitch,
-              chordId: tonic.chordId,
-              diatonicRomanNumeral: tonic.romanNumeral,
+              enabled: false,
             },
           };
         }
@@ -225,17 +271,24 @@ export const useFretboardStore = create<FretboardStore>((set, get) => {
         const diatonicTriads = getDiatonicTriads(root, scaleDef);
         const tonic = diatonicTriads[0];
 
+        if (tonic) {
+          return {
+            ...prev,
+            scaleLayer: { ...prev.scaleLayer, rootPitchClass: root },
+            targetLayer: {
+              ...prev.targetLayer,
+              // Keep the chord hidden if the user hid it; it still follows the new key
+              enabled: prev.targetLayer.enabled,
+              rootPitchClass: tonic.rootPitch,
+              chordId: tonic.chordId,
+              diatonicRomanNumeral: tonic.romanNumeral,
+            },
+          };
+        }
+
         return {
           ...prev,
           scaleLayer: { ...prev.scaleLayer, rootPitchClass: root },
-          targetLayer: {
-            ...prev.targetLayer,
-            // Keep the chord hidden if the user hid it; it still follows the new key
-            enabled: prev.targetLayer.enabled,
-            rootPitchClass: tonic.rootPitch,
-            chordId: tonic.chordId,
-            diatonicRomanNumeral: tonic.romanNumeral,
-          },
         };
       }),
 
@@ -252,7 +305,12 @@ export const useFretboardStore = create<FretboardStore>((set, get) => {
       })),
 
     resetToDefaults: () => {
-      set({ viewState: DEFAULT_FRETBOARD_STATE, viewWindow: undefined });
+      set({
+        viewState: DEFAULT_FRETBOARD_STATE,
+        viewWindow: undefined,
+        scaleFinderActive: false,
+        scaleFinderPositions: [],
+      });
       syncStateToUrl(DEFAULT_FRETBOARD_STATE);
       saveExploreConfig(DEFAULT_FRETBOARD_STATE);
     },

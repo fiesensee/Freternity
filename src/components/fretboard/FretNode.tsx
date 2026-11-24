@@ -25,6 +25,7 @@ export interface FretNodeProps {
   cy: number;
   radius?: number;
   isUserSelected?: boolean;
+  selectedNoteLabel?: 'DOT' | 'NOTE_NAME';
   comparisonStatus?: ComparisonStatus;
   isClickablePracticeTarget?: boolean;
   onClick?: (node: ComputedFretNode) => void;
@@ -36,6 +37,7 @@ export const FretNode: FC<FretNodeProps> = ({
   cy,
   radius = 15,
   isUserSelected = false,
+  selectedNoteLabel = 'DOT',
   comparisonStatus = 'NONE',
   isClickablePracticeTarget = false,
   onClick,
@@ -51,7 +53,7 @@ export const FretNode: FC<FretNodeProps> = ({
   const isWrong = comparisonStatus === 'WRONG';
   const isMissed = comparisonStatus === 'MISSED';
 
-  // If node is normally hidden but on an active string in practice mode, allow clicking
+  // If node is normally hidden but on an active string in practice mode or scale finder, allow clicking
   if (isHidden && !isUserSelected && !isWrong) {
     if (isClickablePracticeTarget) {
       return (
@@ -107,12 +109,12 @@ export const FretNode: FC<FretNodeProps> = ({
     textColor = '#ffffff';
     opacity = 0.95;
   } else if (isUserSelected) {
-    // User selected this node during PROMPTING
+    // User selected this node (during PROMPTING or Explore Scale Finder)
     fillColor = '#0284c7'; // sky-600
     strokeColor = '#7dd3fc'; // sky-300
     strokeWidth = 2.5;
     textColor = '#ffffff';
-    labelText = '●';
+    labelText = selectedNoteLabel === 'NOTE_NAME' ? node.noteName : '●';
     opacity = 1.0;
   } else if (isGhost) {
     opacity = 0.15;
