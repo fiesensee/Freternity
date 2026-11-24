@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  getChromaticNoteName,
   getDiatonicScaleSpelling,
   getIntervalDegree,
   getNoteNameInContext,
@@ -85,6 +86,36 @@ describe('musicTheory', () => {
       expect(getNoteNameInContext(10, 5, SCALE_MAP['ionian'])).toBe('Bb');
       // In B Major (root = 11), pitch 10 is A#
       expect(getNoteNameInContext(10, 11, SCALE_MAP['ionian'], false)).toBe('A#');
+    });
+
+    it('spells chromatic notes with flats or sharps independently of the key signature', () => {
+      // C Major has no black keys in its key signature, so all five follow the display preference
+      const blackKeys: PitchClass[] = [1, 3, 6, 8, 10];
+      expect(blackKeys.map((pc) => getChromaticNoteName(pc, true))).toEqual([
+        'Db',
+        'Eb',
+        'Gb',
+        'Ab',
+        'Bb',
+      ]);
+      expect(blackKeys.map((pc) => getChromaticNoteName(pc, false))).toEqual([
+        'C#',
+        'D#',
+        'F#',
+        'G#',
+        'A#',
+      ]);
+
+      // Chromatic notes in G Major follow the preference …
+      expect(getNoteNameInContext(8, 7, SCALE_MAP['ionian'], true)).toBe('Ab');
+      expect(getNoteNameInContext(8, 7, SCALE_MAP['ionian'], false)).toBe('G#');
+      // … but its diatonic F# stays F# even when flats are preferred
+      expect(getNoteNameInContext(6, 7, SCALE_MAP['ionian'], true)).toBe('F#');
+
+      // F Major keeps its diatonic Bb, while its chromatic notes follow the preference
+      expect(getNoteNameInContext(10, 5, SCALE_MAP['ionian'], false)).toBe('Bb');
+      expect(getNoteNameInContext(1, 5, SCALE_MAP['ionian'], false)).toBe('C#');
+      expect(getNoteNameInContext(1, 5, SCALE_MAP['ionian'], true)).toBe('Db');
     });
   });
 

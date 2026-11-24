@@ -28,6 +28,31 @@ describe('fretboardProjector', () => {
     expect(withChord[5][3].visualPriority).toBe('CONTEXT_SCALE');
   });
 
+  it('spells every visible fretboard label as Gb or F#', () => {
+    const state: FretboardViewState = {
+      instrumentId: 'guitar_6_standard',
+      labelMode: 'NOTE_NAME',
+      scaleLayer: { enabled: true, rootPitchClass: 6, preferFlats: true, scaleId: 'ionian' },
+      targetLayer: { enabled: false, rootPitchClass: 6, chordId: 'maj' },
+      filterMask: { activeStrings: [1, 2, 3, 4, 5, 6], fretRange: { min: 0, max: 22 } },
+    };
+    const visibleLabels = (preferFlats: boolean) =>
+      [
+        ...new Set(
+          projectFretboard(
+            { ...state, scaleLayer: { ...state.scaleLayer, preferFlats } },
+            GUITAR_6_STANDARD
+          )
+            .flat()
+            .filter((node) => node.visualPriority !== 'HIDDEN')
+            .map((node) => node.displayLabel)
+        ),
+      ].sort();
+
+    expect(visibleLabels(true)).toEqual(['Ab', 'B', 'Bb', 'Db', 'Eb', 'F', 'Gb']);
+    expect(visibleLabels(false)).toEqual(['A#', 'B', 'C#', 'D#', 'F', 'F#', 'G#']);
+  });
+
   it('accurately computes A Aeolian with F Major triad overlay (1st Inversion on strings 1-2-3)', () => {
     const state: FretboardViewState = {
       instrumentId: 'guitar_6_standard',

@@ -1,7 +1,10 @@
+import { createElement } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { GUITAR_6_STANDARD } from '../../src/core/constants';
 import { projectFretboard } from '../../src/core/fretboardProjector';
 import { FretboardViewState } from '../../src/core/models';
+import { FretboardSvg } from '../../src/components/fretboard/FretboardSvg';
 
 describe('FretboardSvg integration and projection verification', () => {
   it('prepares correct visual priorities and hierarchy for SVG rendering', () => {
@@ -82,6 +85,33 @@ describe('FretboardSvg integration and projection verification', () => {
 
     expect(zoomedWidth).toBeLessThan(fullWidth * 0.4); // Zoomed window is significantly narrower
     expect(startX).toBeGreaterThan(0);
+  });
+
+  it('renders Gb/F# note labels for every visible fretboard label', () => {
+    const stateFor = (preferFlats: boolean): FretboardViewState => ({
+      instrumentId: 'guitar_6_standard',
+      labelMode: 'NOTE_NAME',
+      scaleLayer: { enabled: true, rootPitchClass: 6, preferFlats, scaleId: 'ionian' },
+      targetLayer: { enabled: false, rootPitchClass: 6, chordId: 'maj' },
+      filterMask: { activeStrings: [1, 2, 3, 4, 5, 6], fretRange: { min: 0, max: 22 } },
+    });
+
+    // Read the actual <text> labels the SVG renders, not just projected node names
+    const renderedNoteLabels = (preferFlats: boolean) => {
+      const html = renderToStaticMarkup(
+        createElement(FretboardSvg, {
+          matrix: projectFretboard(stateFor(preferFlats), GUITAR_6_STANDARD),
+          instrument: GUITAR_6_STANDARD,
+        })
+      );
+      const labels = [...html.matchAll(/<text[^>]*>([A-G][#b]?)<\/text>/g)].map(
+        (match) => match[1]
+      );
+      return [...new Set(labels)].sort();
+    };
+
+    expect(renderedNoteLabels(true)).toEqual(['Ab', 'B', 'Bb', 'Db', 'Eb', 'F', 'Gb']);
+    expect(renderedNoteLabels(false)).toEqual(['A#', 'B', 'C#', 'D#', 'F', 'F#', 'G#']);
   });
 
   it('verifies CagedOverlaySvg renders badge over the fretboard', async () => {
